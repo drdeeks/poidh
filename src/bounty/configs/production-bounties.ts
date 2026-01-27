@@ -46,7 +46,7 @@ First valid submission wins automatically!
   `.trim(),
   proofType: ProofType.PHOTO,
   selectionMode: SelectionMode.FIRST_VALID,
-  rewardEth: '0.0001', // Minimum amount (~$0.25)
+  rewardEth: '0.001', // Minimum amount (~$2.50)
   deadline: deadlineFromNow(6), // 6 hours
   validation: {
     requireExif: true,
@@ -117,7 +117,7 @@ First submission with all elements clearly visible wins!
   `.trim(),
   proofType: ProofType.PHOTO,
   selectionMode: SelectionMode.FIRST_VALID,
-  rewardEth: '0.0001', // Minimum amount (~$0.25)
+  rewardEth: '0.001', // Minimum amount (~$2.50)
   deadline: deadlineFromNow(24),
   validation: {
     requireExif: true,
@@ -179,7 +179,7 @@ This is a "first valid wins" bounty - speed matters!
   `.trim(),
   proofType: ProofType.PHOTO,
   selectionMode: SelectionMode.FIRST_VALID,
-  rewardEth: '0.0001', // Minimum amount (~$0.25)
+  rewardEth: '0.001', // Minimum amount (~$2.50)
   deadline: deadlineFromNow(4), // 4 hours - meal times are limited
   validation: {
     requireExif: true,
@@ -244,7 +244,7 @@ After the deadline, AI will evaluate all submissions and select the winner!
   `.trim(),
   proofType: ProofType.PHOTO,
   selectionMode: SelectionMode.AI_JUDGED,
-  rewardEth: '0.0001', // Minimum amount (~$0.25)
+  rewardEth: '0.001', // Minimum amount (~$2.50)
   deadline: deadlineFromNow(48), // 2 days for competition
   validation: {
     requireExif: true,
@@ -322,7 +322,7 @@ Rules:
   `.trim(),
   proofType: ProofType.PHOTO,
   selectionMode: SelectionMode.AI_JUDGED,
-  rewardEth: '0.0001', // Minimum amount (~$0.25)
+  rewardEth: '0.001', // Minimum amount (~$2.50)
   deadline: deadlineFromNow(72), // 3 days
   validation: {
     requireExif: true,
@@ -392,7 +392,7 @@ Rules:
   `.trim(),
   proofType: ProofType.PHOTO,
   selectionMode: SelectionMode.AI_JUDGED,
-  rewardEth: '0.0001', // Minimum amount (~$0.25)
+  rewardEth: '0.001', // Minimum amount (~$2.50)
   deadline: deadlineFromNow(48),
   validation: {
     requireExif: true,
