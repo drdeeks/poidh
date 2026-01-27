@@ -1,0 +1,71 @@
+{
+  "name": "autonomous-bounty-bot",
+  "version": "1.0.0",
+  "description": "Fully autonomous bounty bot for poidh - creates, monitors, evaluates, and pays out real-world proof bounties",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/agent.js",
+    "dev": "ts-node src/index.ts",
+    "agent": "ts-node src/agent.ts",
+    "agent:outside": "ts-node src/agent.ts proveOutside",
+    "agent:handwritten": "ts-node src/agent.ts handwrittenDate",
+    "agent:meal": "ts-node src/agent.ts mealPhoto",
+    "agent:tower": "ts-node src/agent.ts objectTower",
+    "agent:shadow": "ts-node src/agent.ts shadowArt",
+    "agent:animal": "ts-node src/agent.ts animalPhoto",
+    "agent:list": "ts-node src/agent.ts list",
+    "demo:first-valid": "ts-node src/demos/first-valid-demo.ts",
+    "demo:ai-judged": "ts-node src/demos/ai-judged-demo.ts",
+    "demo:full": "ts-node src/demos/full-demo.ts",
+    "demo:simulate": "ts-node src/demos/simulation-demo.ts",
+    "wallet:create": "ts-node src/scripts/create-wallet.ts",
+    "wallet:balance": "ts-node src/scripts/check-balance.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist coverage logs"
+  },
+  "dependencies": {
+    "ethers": "^6.9.0",
+    "openai": "^4.24.0",
+    "dotenv": "^16.3.1",
+    "axios": "^1.6.2",
+    "sharp": "^0.33.1",
+    "exif-reader": "^2.0.0",
+    "node-cron": "^3.0.3",
+    "winston": "^3.11.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "@types/node-cron": "^3.0.11",
+    "@types/uuid": "^9.0.7",
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2",
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.11"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/autonomous-bounty-bot.git"
+  },
+  "keywords": [
+    "poidh",
+    "bounty",
+    "autonomous",
+    "ai",
+    "blockchain",
+    "base",
+    "farcaster"
+  ]
+}
+
