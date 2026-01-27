@@ -26,9 +26,10 @@ import { log } from '../utils/logger';
 import { config } from '../config';
 
 // Simulated submissions for demo
+// Note: 'submitter' maps to 'issuer' in the actual V3 contract
 const MOCK_SUBMISSIONS = [
   {
-    claimer: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+    submitter: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
     uri: 'ipfs://QmExample1',
     proofContent: {
       type: ProofType.PHOTO,
@@ -37,7 +38,7 @@ const MOCK_SUBMISSIONS = [
     },
   },
   {
-    claimer: '0x8ba1f109551bD432803012645Ac136ddd64DBA72',
+    submitter: '0x8ba1f109551bD432803012645Ac136ddd64DBA72',
     uri: 'ipfs://QmExample2',
     proofContent: {
       type: ProofType.PHOTO,
@@ -46,7 +47,7 @@ const MOCK_SUBMISSIONS = [
     },
   },
   {
-    claimer: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
+    submitter: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
     uri: 'ipfs://QmExample3',
     proofContent: {
       type: ProofType.PHOTO,
@@ -137,7 +138,7 @@ async function runSimulation() {
   console.log('\n📥 Simulating submission to First-Valid bounty...');
   const claim1 = await mockPoidhContract.simulateSubmission(
     bounty1Id,
-    MOCK_SUBMISSIONS[0].claimer,
+    MOCK_SUBMISSIONS[0].submitter, // 'submitter' maps to 'issuer' in V3
     MOCK_SUBMISSIONS[0].uri
   );
 
@@ -145,7 +146,7 @@ async function runSimulation() {
     id: uuidv4(),
     bountyId: 'sim-first-valid',
     claimId: claim1.id.toString(),
-    submitter: claim1.claimer,
+    submitter: claim1.issuer, // V3 uses 'issuer' not 'claimer'
     proofUri: claim1.uri,
     timestamp: Date.now(),
     proofContent: MOCK_SUBMISSIONS[0].proofContent,
@@ -159,7 +160,7 @@ async function runSimulation() {
     console.log(`\n📥 Simulating submission ${i} to AI-Judged bounty...`);
     const claim = await mockPoidhContract.simulateSubmission(
       bounty2Id,
-      MOCK_SUBMISSIONS[i].claimer,
+      MOCK_SUBMISSIONS[i].submitter, // 'submitter' maps to 'issuer' in V3
       MOCK_SUBMISSIONS[i].uri
     );
 
@@ -167,13 +168,13 @@ async function runSimulation() {
       id: uuidv4(),
       bountyId: 'sim-ai-judged',
       claimId: claim.id.toString(),
-      submitter: claim.claimer,
+      submitter: claim.issuer, // V3 uses 'issuer' not 'claimer'
       proofUri: claim.uri,
       timestamp: Date.now(),
       proofContent: MOCK_SUBMISSIONS[i].proofContent,
     });
 
-    console.log(`   Submission from: ${MOCK_SUBMISSIONS[i].claimer.substring(0, 20)}...`);
+    console.log(`   Submission from: ${MOCK_SUBMISSIONS[i].submitter.substring(0, 20)}...`);
   }
 
   console.log('\n' + '═'.repeat(80));
@@ -308,7 +309,7 @@ async function runSimulation() {
   const allBounties = mockPoidhContract.getAllBounties();
   console.log(`\n📊 Final Statistics:`);
   console.log(`   Total Bounties: ${allBounties.length}`);
-  console.log(`   Completed: ${allBounties.filter(b => b.bounty.isCompleted).length}`);
+  console.log(`   Completed: ${allBounties.filter(b => mockPoidhContract.isBountyCompleted(b.bounty)).length}`);
   console.log(`   Total Claims: ${allBounties.reduce((sum, b) => sum + b.claims.length, 0)}`);
 
   console.log(`
@@ -338,4 +339,3 @@ runSimulation().catch((error) => {
   console.error('Simulation failed:', error);
   process.exit(1);
 });
-
