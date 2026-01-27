@@ -42,14 +42,12 @@ export class POIDHContract {
 
     // Log contract constants for verification
     try {
-      const feeBps = await this.contract.FEE_BPS();
-      const maxParticipants = await this.contract.MAX_PARTICIPANTS();
-      const votingPeriod = await this.contract.votingPeriod();
+      const minBounty = await this.contract.MIN_BOUNTY_AMOUNT();
+      const minContribution = await this.contract.MIN_CONTRIBUTION();
 
       log.info('Contract constants verified', {
-        feeBps: feeBps.toString(),
-        maxParticipants: maxParticipants.toString(),
-        votingPeriodDays: Number(votingPeriod) / 86400,
+        minBountyAmount: `${formatEther(minBounty)} ETH`,
+        minContribution: `${formatEther(minContribution)} ETH`,
       });
     } catch (error) {
       log.warn('Could not fetch contract constants', { error: (error as Error).message });
@@ -110,10 +108,11 @@ export class POIDHContract {
     console.log('  value (wei):', valueWei.toString());
     console.log('  value (ETH):', amountEth);
 
+    // Note: Contract signature is createSoloBounty(name, description) payable
+    // No deadline parameter in contract - deadline is embedded in description
     const tx = await contract.createSoloBounty(
       name,
       description,
-      deadlineTimestamp,
       { value: valueWei }
     );
 
@@ -159,10 +158,11 @@ export class POIDHContract {
       deadline: new Date(deadlineTimestamp * 1000).toISOString(),
     });
 
+    // Note: Contract signature is createOpenBounty(name, description) payable
+    // No deadline parameter in contract - deadline is embedded in description
     const tx = await contract.createOpenBounty(
       name,
       description,
-      deadlineTimestamp,
       { value: parseEther(amountEth) }
     );
 
@@ -185,21 +185,23 @@ export class POIDHContract {
   }
 
   /**
-   * Contribute to an existing open bounty
+   * Join/contribute to an existing open bounty
+   *
+   * Contract signature: joinOpenBounty(uint256 bountyId) payable
    */
-  async contribute(bountyId: string, amountEth: string): Promise<string> {
+  async joinOpenBounty(bountyId: string, amountEth: string): Promise<string> {
     const contract = this.getContract();
 
-    log.autonomous('Contributing to bounty', {
+    log.autonomous('Joining open bounty', {
       bountyId,
       amount: `${amountEth} ETH`,
     });
 
-    const tx = await contract.contribute(bountyId, {
+    const tx = await contract.joinOpenBounty(bountyId, {
       value: parseEther(amountEth),
     });
 
-    log.tx('Contribute', tx.hash, { bountyId, amount: amountEth });
+    log.tx('Join Open Bounty', tx.hash, { bountyId, amount: amountEth });
 
     await tx.wait();
 
@@ -207,17 +209,49 @@ export class POIDHContract {
   }
 
   /**
-   * Cancel a bounty (only issuer, before any claims)
+   * Cancel a solo bounty (only issuer, before any claims accepted)
    */
-  async cancelBounty(bountyId: string): Promise<string> {
+  async cancelSoloBounty(bountyId: string): Promise<string> {
     const contract = this.getContract();
 
-    log.autonomous('Cancelling bounty', { bountyId });
+    log.autonomous('Cancelling solo bounty', { bountyId });
 
-    const tx = await contract.cancelBounty(bountyId);
+    const tx = await contract.cancelSoloBounty(bountyId);
     await tx.wait();
 
-    log.bounty('Cancelled', bountyId, { txHash: tx.hash });
+    log.bounty('Cancelled (Solo)', bountyId, { txHash: tx.hash });
+
+    return tx.hash;
+  }
+
+  /**
+   * Cancel an open bounty (only issuer, returns proportional refunds to participants)
+   */
+  async cancelOpenBounty(bountyId: string): Promise<string> {
+    const contract = this.getContract();
+
+    log.autonomous('Cancelling open bounty', { bountyId });
+
+    const tx = await contract.cancelOpenBounty(bountyId);
+    await tx.wait();
+
+    log.bounty('Cancelled (Open)', bountyId, { txHash: tx.hash });
+
+    return tx.hash;
+  }
+
+  /**
+   * Withdraw from an open bounty (participants can leave before voting)
+   */
+  async withdrawFromOpenBounty(bountyId: string): Promise<string> {
+    const contract = this.getContract();
+
+    log.autonomous('Withdrawing from open bounty', { bountyId });
+
+    const tx = await contract.withdrawFromOpenBounty(bountyId);
+    await tx.wait();
+
+    log.bounty('Withdrawn from Open', bountyId, { txHash: tx.hash });
 
     return tx.hash;
   }
@@ -228,13 +262,25 @@ export class POIDHContract {
 
   /**
    * Submit a claim with proof URI
+   *
+   * Contract signature: createClaim(uint256 bountyId, string name, string description, string uri)
+   *
+   * @param bountyId - The bounty to claim
+   * @param name - Title of the claim
+   * @param description - Description of the claim/proof
+   * @param proofUri - IPFS URI to the proof image
    */
-  async createClaim(bountyId: string, proofUri: string): Promise<{ claimId: string; txHash: string }> {
+  async createClaim(
+    bountyId: string,
+    name: string,
+    description: string,
+    proofUri: string
+  ): Promise<{ claimId: string; txHash: string }> {
     const contract = this.getContract();
 
-    log.autonomous('Creating claim', { bountyId, proofUri });
+    log.autonomous('Creating claim', { bountyId, name, proofUri });
 
-    const tx = await contract.createClaim(bountyId, proofUri);
+    const tx = await contract.createClaim(bountyId, name, description, proofUri);
 
     log.tx('Create Claim', tx.hash, { bountyId });
 
@@ -243,7 +289,8 @@ export class POIDHContract {
     const event = receipt.logs.find(
       (log: any) => log.fragment?.name === 'ClaimCreated'
     );
-    const claimId = event?.args?.[1]?.toString() || '0';
+    // ClaimCreated event: (id, issuer, bountyId, bountyIssuer, title, description, createdAt, imageUri)
+    const claimId = event?.args?.[0]?.toString() || '0';
 
     return { claimId, txHash: tx.hash };
   }
@@ -302,16 +349,21 @@ export class POIDHContract {
   }
 
   /**
-   * Vote for a claim (weighted by contribution)
+   * Vote on a claim (weighted by contribution)
+   *
+   * Contract signature: voteClaim(uint256 bountyId, bool vote)
+   *
+   * @param bountyId - The bounty ID
+   * @param support - true for YES, false for NO
    */
-  async voteClaim(bountyId: string, claimId: string): Promise<string> {
+  async voteClaim(bountyId: string, support: boolean): Promise<string> {
     const contract = this.getContract();
 
-    log.autonomous('Voting for claim', { bountyId, claimId });
+    log.autonomous('Voting on claim', { bountyId, support: support ? 'YES' : 'NO' });
 
-    const tx = await contract.voteClaim(bountyId, claimId);
+    const tx = await contract.voteClaim(bountyId, support);
 
-    log.tx('Vote Claim', tx.hash, { bountyId, claimId });
+    log.tx('Vote Claim', tx.hash, { bountyId, support });
 
     await tx.wait();
 
@@ -383,23 +435,26 @@ export class POIDHContract {
 
   /**
    * Get bounty details by ID
+   *
+   * Contract returns: (id, issuer, name, description, amount, claimer, createdAt, claimId)
+   * - claimer == 0x0: active bounty
+   * - claimer == issuer: cancelled or closed
+   * - claimer == other address: completed (claim accepted)
    */
   async getBounty(bountyId: string): Promise<Bounty | null> {
     const contract = this.getContract();
 
     try {
-      const bounty = await contract.getBounty(bountyId);
+      const bounty = await contract.bounties(bountyId);
       return {
-        id: bounty.id,
-        issuer: bounty.issuer,
-        name: bounty.name,
-        description: bounty.description,
-        amount: bounty.amount,
-        deadline: bounty.deadline,
-        isOpen: bounty.isOpen,
-        isCompleted: bounty.isCompleted,
-        isCancelled: bounty.isCancelled,
-        winningClaimId: bounty.winningClaimId,
+        id: bounty.id || bounty[0],
+        issuer: bounty.issuer || bounty[1],
+        name: bounty.name || bounty[2],
+        description: bounty.description || bounty[3],
+        amount: bounty.amount || bounty[4],
+        claimer: bounty.claimer || bounty[5],
+        createdAt: bounty.createdAt || bounty[6],
+        claimId: bounty.claimId || bounty[7],
       };
     } catch (error) {
       log.error('Failed to get bounty', { bountyId, error: (error as Error).message });
@@ -408,22 +463,46 @@ export class POIDHContract {
   }
 
   /**
-   * Get all claims for a bounty
+   * Get paginated bounties
    */
-  async getBountyClaims(bountyId: string): Promise<Claim[]> {
+  async getBounties(offset: number = 0): Promise<Bounty[]> {
     const contract = this.getContract();
 
     try {
-      const claims = await contract.getClaims(bountyId);
-      return claims.map((claim: any) => ({
-        id: claim.id,
-        bountyId: claim.bountyId,
-        claimer: claim.claimer,
-        uri: claim.uri,
-        createdAt: claim.createdAt,
-        accepted: claim.accepted,
-        inVoting: claim.inVoting,
-        votesFor: claim.votesFor,
+      const bounties = await contract.getBounties(offset);
+      return bounties.map((b: any) => ({
+        id: b.id || b[0],
+        issuer: b.issuer || b[1],
+        name: b.name || b[2],
+        description: b.description || b[3],
+        amount: b.amount || b[4],
+        claimer: b.claimer || b[5],
+        createdAt: b.createdAt || b[6],
+        claimId: b.claimId || b[7],
+      }));
+    } catch (error) {
+      log.error('Failed to get bounties', { offset, error: (error as Error).message });
+      return [];
+    }
+  }
+
+  /**
+   * Get claims for a bounty (paginated)
+   */
+  async getBountyClaims(bountyId: string, offset: number = 0): Promise<Claim[]> {
+    const contract = this.getContract();
+
+    try {
+      const claims = await contract.getClaimsByBountyId(bountyId, offset);
+      return claims.map((c: any) => ({
+        id: c.id || c[0],
+        issuer: c.issuer || c[1],
+        bountyId: c.bountyId || c[2],
+        bountyIssuer: c.bountyIssuer || c[3],
+        name: c.name || c[4],
+        description: c.description || c[5],
+        createdAt: c.createdAt || c[6],
+        accepted: c.accepted || c[7],
       }));
     } catch (error) {
       log.error('Failed to get claims', { bountyId, error: (error as Error).message });
@@ -432,12 +511,27 @@ export class POIDHContract {
   }
 
   /**
-   * Get claim count for a bounty
+   * Get a specific claim by ID
    */
-  async getClaimCount(bountyId: string): Promise<number> {
+  async getClaim(claimId: string): Promise<Claim | null> {
     const contract = this.getContract();
-    const count = await contract.getClaimCount(bountyId);
-    return Number(count);
+
+    try {
+      const c = await contract.claims(claimId);
+      return {
+        id: c.id || c[0],
+        issuer: c.issuer || c[1],
+        bountyId: c.bountyId || c[2],
+        bountyIssuer: c.bountyIssuer || c[3],
+        name: c.name || c[4],
+        description: c.description || c[5],
+        createdAt: c.createdAt || c[6],
+        accepted: c.accepted || c[7],
+      };
+    } catch (error) {
+      log.error('Failed to get claim', { claimId, error: (error as Error).message });
+      return null;
+    }
   }
 
   /**
@@ -445,68 +539,79 @@ export class POIDHContract {
    */
   async getBountyCount(): Promise<number> {
     const contract = this.getContract();
-    const count = await contract.bountyCount();
+    const count = await contract.bountyCounter();
     return Number(count);
   }
 
   /**
-   * Get contribution amount for a specific contributor
+   * Get total claim count
    */
-  async getContribution(bountyId: string, contributor: string): Promise<string> {
+  async getClaimCount(): Promise<number> {
     const contract = this.getContract();
-    const amount = await contract.contributions(bountyId, contributor);
-    return formatEther(amount);
-  }
-
-  /**
-   * Get all contributors for a bounty
-   */
-  async getContributors(bountyId: string): Promise<string[]> {
-    const contract = this.getContract();
-    return contract.getContributors(bountyId);
-  }
-
-  /**
-   * Get participant count for open bounty
-   */
-  async getParticipantCount(bountyId: string): Promise<number> {
-    const contract = this.getContract();
-    const count = await contract.participantCount(bountyId);
+    const count = await contract.claimCounter();
     return Number(count);
   }
 
   /**
-   * Check if address has voted
+   * Get participants and their amounts for an open bounty
    */
-  async hasVoted(bountyId: string, voter: string): Promise<boolean> {
+  async getParticipants(bountyId: string): Promise<{ addresses: string[]; amounts: bigint[] }> {
     const contract = this.getContract();
-    return contract.hasVoted(bountyId, voter);
+    const [addresses, amounts] = await contract.getParticipants(bountyId);
+    return { addresses, amounts };
   }
 
   /**
-   * Get votes for a claim
+   * Get voting tracker for a bounty
    */
-  async getVotes(claimId: string): Promise<string> {
+  async getVotingTracker(bountyId: string): Promise<{ yes: bigint; no: bigint; deadline: number }> {
     const contract = this.getContract();
-    const votes = await contract.getVotes(claimId);
-    return formatEther(votes);
+    const tracker = await contract.bountyVotingTracker(bountyId);
+    return {
+      yes: tracker.yes || tracker[0],
+      no: tracker.no || tracker[1],
+      deadline: Number(tracker.deadline || tracker[2]),
+    };
   }
 
   /**
-   * Get voting end time for a claim
+   * Get current voting claim for a bounty
    */
-  async getVotingEndTime(claimId: string): Promise<number> {
+  async getCurrentVotingClaim(bountyId: string): Promise<string> {
     const contract = this.getContract();
-    const endTime = await contract.votingEndTime(claimId);
-    return Number(endTime);
+    const claimId = await contract.bountyCurrentVotingClaim(bountyId);
+    return claimId.toString();
   }
 
   /**
-   * Check if voting period has ended for a claim
+   * Check if voting deadline has passed for a bounty
    */
-  async isVotingEnded(claimId: string): Promise<boolean> {
-    const endTime = await this.getVotingEndTime(claimId);
-    return Date.now() / 1000 > endTime;
+  async isVotingEnded(bountyId: string): Promise<boolean> {
+    const tracker = await this.getVotingTracker(bountyId);
+    return Date.now() / 1000 > tracker.deadline;
+  }
+
+  /**
+   * Check if a bounty is active (not cancelled/completed)
+   */
+  isBountyActive(bounty: Bounty): boolean {
+    const zeroAddress = '0x0000000000000000000000000000000000000000';
+    return bounty.claimer === zeroAddress;
+  }
+
+  /**
+   * Check if a bounty is cancelled
+   */
+  isBountyCancelled(bounty: Bounty): boolean {
+    return bounty.claimer.toLowerCase() === bounty.issuer.toLowerCase();
+  }
+
+  /**
+   * Check if a bounty is completed (has accepted claim)
+   */
+  isBountyCompleted(bounty: Bounty): boolean {
+    const zeroAddress = '0x0000000000000000000000000000000000000000';
+    return bounty.claimer !== zeroAddress && bounty.claimer.toLowerCase() !== bounty.issuer.toLowerCase();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -559,4 +664,3 @@ export class POIDHContract {
 }
 
 export const poidhContract = new POIDHContract();
-
