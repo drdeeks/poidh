@@ -79,7 +79,8 @@ export function loadConfig(): Config {
     // Supports: RPC_URL (primary), BASE_RPC_URL, BASE_MAINNET_RPC_URL, BASE_SEPOLIA_RPC_URL (legacy)
     rpcUrl: getEnvVar('RPC_URL', getEnvVar('BASE_RPC_URL', getEnvVar('BASE_MAINNET_RPC_URL', getEnvVar('BASE_SEPOLIA_RPC_URL', defaultRpcUrl)))),
     chainId,
-    botPrivateKey: getEnvVar('BOT_PRIVATE_KEY', ''),
+    // Supports: PRIVATE_KEY (primary), BOT_PRIVATE_KEY (legacy)
+    botPrivateKey: getEnvVar('PRIVATE_KEY', getEnvVar('BOT_PRIVATE_KEY', '')),
 
     // POIDH V3 Contract (single unified contract)
     poidhContractAddress,

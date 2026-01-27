@@ -123,21 +123,21 @@ export class AutonomousBountyAgent {
     bountyType: keyof typeof PRODUCTION_BOUNTIES,
     overrides?: Partial<BountyConfig>
   ): Promise<ActiveBounty> {
-    const baseConfig = PRODUCTION_BOUNTIES[bountyType];
-    if (!baseConfig) {
+    // Validate bounty type exists
+    if (!(bountyType in PRODUCTION_BOUNTIES)) {
       throw new Error(`Unknown bounty type: ${String(bountyType)}. Available: ${Object.keys(PRODUCTION_BOUNTIES).join(', ')}`);
     }
 
-    // Create fresh copy with new ID and deadline
-    const bountyConfig = createFreshBounty(baseConfig, overrides);
+    // Create fresh config with new ID and deadline (calculated at runtime)
+    const freshConfig = createFreshBounty(bountyType, overrides);
 
     log.info(`🎯 Launching production bounty: ${String(bountyType)}`, {
-      name: bountyConfig.name,
-      selectionMode: bountyConfig.selectionMode,
-      reward: `${bountyConfig.rewardEth} ETH`,
+      name: freshConfig.name,
+      selectionMode: freshConfig.selectionMode,
+      reward: `${freshConfig.rewardEth} ETH`,
     });
 
-    return this.createBounty(bountyConfig);
+    return this.createBounty(freshConfig);
   }
 
   /**
@@ -381,6 +381,8 @@ ${rationale.split('\n').slice(0, 5).map(line => '║  ' + line.substring(0, 74).
     completedBounties: number;
     totalPayouts: number;
     network: string;
+    walletBalance?: string;
+    walletAddress?: string;
   } {
     const all = bountyManager.getAllBounties();
 
@@ -395,6 +397,15 @@ ${rationale.split('\n').slice(0, 5).map(line => '║  ' + line.substring(0, 74).
         .reduce((sum, b) => sum + parseFloat(b.config.rewardEth), 0),
       network: config.chainId === 8453 ? 'Base Mainnet' : 'Base Sepolia',
     };
+  }
+
+  /**
+   * Get wallet info (async version)
+   */
+  async getWalletInfo(): Promise<{ address: string; balance: string }> {
+    const address = await walletManager.getAddress();
+    const balance = await walletManager.getBalance();
+    return { address, balance };
   }
 
   /**
@@ -464,7 +475,7 @@ if (require.main === module) {
       // If bounty type specified, launch that bounty
       if (bountyArg && bountyArg in PRODUCTION_BOUNTIES) {
         const bountyType = bountyArg as keyof typeof PRODUCTION_BOUNTIES;
-        console.log(`\n🎯 Launching production bounty: ${String(bountyType)}\n`);
+        console.log(`\n🎯 Launching production bounty: ${bountyType}\n`);
         await agent.launchProductionBounty(bountyType);
       } else if (bountyArg) {
         console.log(`\n❌ Unknown bounty type: ${bountyArg}`);

@@ -14,7 +14,7 @@
  */
 
 import { agent } from '../agent';
-import { DEMO_AI_JUDGED_BOUNTY, deadlineFromNow } from '../bounty/templates';
+import { DEMO_AI_JUDGED_BOUNTY } from '../bounty/templates';
 import { log } from '../utils/logger';
 import { config } from '../config';
 
@@ -45,12 +45,33 @@ async function runAIJudgedDemo() {
     log.info('🔧 Initializing agent...');
     await agent.initialize();
 
-    // Configure bounty for demo (shorter deadline)
+    // Check wallet balance first
+    const walletInfo = await agent.getWalletInfo();
+    const status = agent.getStatus();
+    console.log(`\n💰 Wallet: ${walletInfo.address}`);
+    console.log(`💰 Balance: ${walletInfo.balance} ETH`);
+    console.log(`📍 Network: ${status.network}`);
+
+    // Verify sufficient balance
+    const requiredEth = 0.002;
+    const balance = parseFloat(walletInfo.balance);
+    if (balance < requiredEth + 0.0005) {
+      throw new Error(
+        `Insufficient balance! Have ${walletInfo.balance} ETH, need at least ${requiredEth + 0.0005} ETH (bounty + gas).\n` +
+        `Send Base ETH to: ${walletInfo.address}`
+      );
+    }
+
+    // Configure bounty for demo - FRESH deadline at runtime!
+    const freshDeadline = Math.floor(Date.now() / 1000) + (30 * 60); // 30 minutes from NOW
+
     const bountyConfig = {
       ...DEMO_AI_JUDGED_BOUNTY,
-      deadline: deadlineFromNow(0.5), // 30 minutes for demo
-      rewardEth: config.demoMode ? '0' : '0.002',
+      deadline: freshDeadline,
+      rewardEth: '0.002', // Always use real funds
     };
+
+    console.log(`\n⏰ Fresh deadline calculated: ${new Date(freshDeadline * 1000).toISOString()}`);
 
     console.log('\n📋 BOUNTY CONFIGURATION:');
     console.log('━'.repeat(60));
@@ -76,6 +97,7 @@ async function runAIJudgedDemo() {
     console.log(`On-Chain ID: ${bounty.onChainId}`);
     console.log(`Create TX: ${bounty.createTxHash}`);
     console.log(`Status: ${bounty.status}`);
+    console.log(`View on POIDH: https://poidh.xyz/base/bounty/${bounty.onChainId}`);
     console.log('━'.repeat(60));
 
     // Start the agent
@@ -109,12 +131,12 @@ async function runAIJudgedDemo() {
     agent.stop();
 
     // Show final status
-    const status = agent.getStatus();
+    const finalStatus = agent.getStatus();
     console.log('\n📊 DEMO SUMMARY:');
     console.log('━'.repeat(40));
-    console.log(`Active Bounties: ${status.activeBounties}`);
-    console.log(`Completed Bounties: ${status.completedBounties}`);
-    console.log(`Total Payouts: ${status.totalPayouts} ETH`);
+    console.log(`Active Bounties: ${finalStatus.activeBounties}`);
+    console.log(`Completed Bounties: ${finalStatus.completedBounties}`);
+    console.log(`Total Payouts: ${finalStatus.totalPayouts} ETH`);
     console.log('━'.repeat(40));
 
     console.log('\n🛑 Demo stopped.');
@@ -128,3 +150,4 @@ async function runAIJudgedDemo() {
 
 // Run the demo
 runAIJudgedDemo();
+

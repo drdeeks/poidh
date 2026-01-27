@@ -33,12 +33,34 @@ async function runFirstValidDemo() {
     log.info('🔧 Initializing agent...');
     await agent.initialize();
 
+    // Check wallet balance first
+    const walletInfo = await agent.getWalletInfo();
+    const status = agent.getStatus();
+    console.log(`\n💰 Wallet: ${walletInfo.address}`);
+    console.log(`💰 Balance: ${walletInfo.balance} ETH`);
+    console.log(`📍 Network: ${status.network}`);
+
+    // Verify sufficient balance
+    const requiredEth = 0.001;
+    const balance = parseFloat(walletInfo.balance);
+    if (balance < requiredEth + 0.0005) { // Need bounty + gas (~0.0005 ETH)
+      throw new Error(
+        `Insufficient balance! Have ${walletInfo.balance} ETH, need at least ${requiredEth + 0.0005} ETH (bounty + gas).\n` +
+        `Send Base ETH to: ${walletInfo.address}`
+      );
+    }
+
     // Configure bounty for demo (shorter deadline)
+    // IMPORTANT: Always calculate fresh deadline at runtime!
+    const freshDeadline = Math.floor(Date.now() / 1000) + (24 * 60 * 60); // 24 hours from NOW
+
     const bountyConfig = {
       ...DEMO_FIRST_VALID_BOUNTY,
-      deadline: deadlineFromNow(1), // 1 hour for demo
-      rewardEth: config.demoMode ? '0' : '0.001', // No real funds in demo mode
+      deadline: freshDeadline,
+      rewardEth: '0.001', // Always use real funds (0 ETH causes contract revert)
     };
+
+    console.log(`\n⏰ Fresh deadline calculated: ${new Date(freshDeadline * 1000).toISOString()}`);
 
     console.log('\n📋 BOUNTY CONFIGURATION:');
     console.log('━'.repeat(60));
@@ -61,6 +83,7 @@ async function runFirstValidDemo() {
     console.log(`On-Chain ID: ${bounty.onChainId}`);
     console.log(`Create TX: ${bounty.createTxHash}`);
     console.log(`Status: ${bounty.status}`);
+    console.log(`View on POIDH: https://poidh.xyz/base/bounty/${bounty.onChainId}`);
     console.log('━'.repeat(60));
 
     // Start the agent to monitor for submissions
@@ -102,3 +125,4 @@ async function runFirstValidDemo() {
 
 // Run the demo
 runFirstValidDemo();
+
