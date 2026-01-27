@@ -97,7 +97,7 @@ export class SubmissionMonitor {
       log.info('📥 New submission detected', {
         bountyId: configId,
         claimId: claim.id.toString(),
-        claimer: claim.claimer,
+        submitter: claim.issuer, // V3 uses 'issuer' not 'claimer'
       });
 
       // Process the submission
@@ -120,14 +120,15 @@ export class SubmissionMonitor {
     bountyConfigId: string,
     claim: any
   ): Promise<Submission> {
-    // V3 contract uses 'uri' field, fallback to 'proofUri' for compatibility
-    const proofUri = claim.uri || claim.proofUri;
+    // V3 contract: imageUri comes from ClaimCreated event, not stored on claim struct
+    // For now, we expect the caller to provide uri from event or use description as fallback
+    const proofUri = claim.uri || claim.imageUri || claim.proofUri || '';
 
     const submission: Submission = {
       id: uuidv4(),
       bountyId: bountyConfigId,
       claimId: claim.id.toString(),
-      submitter: claim.claimer,
+      submitter: claim.issuer, // V3 uses 'issuer' not 'claimer'
       proofUri: proofUri,
       timestamp: Number(claim.createdAt || claim.timestamp) * 1000,
     };
@@ -205,4 +206,3 @@ export class SubmissionMonitor {
 }
 
 export const submissionMonitor = new SubmissionMonitor();
-
