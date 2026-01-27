@@ -164,6 +164,7 @@ export interface Claim {
   description: string;
   createdAt: bigint;
   accepted: boolean;
+  uri?: string;  // NOTE: Not returned by contract, fetched from Blockscout transaction data
 }
 
 export const POIDH_CONSTANTS = {
@@ -180,3 +181,4 @@ export function calculateFee(amount: bigint): bigint {
 export function calculateNetAmount(amount: bigint): bigint {
   return amount - calculateFee(amount);
 }
+

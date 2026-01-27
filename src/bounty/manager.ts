@@ -204,15 +204,15 @@ export class BountyManager {
     bounty.status = status;
     bounty.updatedAt = Date.now();
 
-    log.bounty('Status updated', configId, { newStatus: status });
+    log.bounty('Status updated', configId, { status });
   }
 
   /**
-   * Complete a bounty (accept winning claim on-chain)
+   * Mark bounty as completed with winner
    */
   async completeBounty(
     configId: string,
-    winner: Submission,
+    winningSubmission: Submission,
     rationale: string
   ): Promise<string> {
     const bounty = this.activeBounties.get(configId);
@@ -221,56 +221,74 @@ export class BountyManager {
     }
 
     if (!bounty.onChainId) {
-      throw new Error(`Bounty has no on-chain ID: ${configId}`);
+      throw new Error('Bounty has no on-chain ID');
     }
 
-    log.bounty('Completing bounty', configId, {
-      winner: winner.submitter,
-      claimId: winner.claimId,
+    log.autonomous('Completing bounty and paying winner', {
+      bountyId: configId,
+      onChainId: bounty.onChainId,
+      winner: winningSubmission.submitter,
+      claimId: winningSubmission.claimId,
     });
 
-    // Vote for the winning claim (this triggers payout in POIDH V3)
-    const txHash = await poidhContract.voteClaim(bounty.onChainId, true);
+    // Accept the claim on-chain (triggers payout)
+    const txHash = await poidhContract.acceptClaim(
+      bounty.onChainId,
+      winningSubmission.claimId,
+      rationale
+    );
 
-    // Update status
+    // Update bounty state
+    bounty.winnerSelection = {
+      winner: winningSubmission,
+      runnerUps: bounty.submissions.filter(
+        (s) => s.id !== winningSubmission.id
+      ),
+      method: bounty.config.selectionMode,
+      rationale,
+      selectedAt: Date.now(),
+      autonomous: true,
+    };
+    bounty.payoutTxHash = txHash;
     bounty.status = BountyStatus.COMPLETED;
-    bounty.winner = winner;
-    bounty.completeTxHash = txHash;
-    bounty.completedAt = Date.now();
     bounty.updatedAt = Date.now();
 
-    log.bounty('Completed', configId, {
-      winner: winner.submitter,
-      txHash,
-    });
+    log.winner(configId, winningSubmission.submitter, rationale);
 
     return txHash;
   }
 
   /**
-   * Check if bounty has expired (past deadline)
+   * Check if bounty deadline has passed
    */
   isExpired(configId: string): boolean {
     const bounty = this.activeBounties.get(configId);
     if (!bounty) return false;
 
-    return Date.now() > bounty.config.deadline * 1000;
+    return Date.now() / 1000 > bounty.config.deadline;
   }
 
   /**
-   * Get submissions for a bounty
+   * Export bounty state for persistence/debugging
    */
-  getSubmissions(configId: string): Submission[] {
-    const bounty = this.activeBounties.get(configId);
-    return bounty?.submissions || [];
+  exportState(): Record<string, ActiveBounty> {
+    const state: Record<string, ActiveBounty> = {};
+    for (const [id, bounty] of this.activeBounties) {
+      state[id] = bounty;
+    }
+    return state;
   }
 
   /**
-   * Clear all bounties (for testing)
+   * Import bounty state (for recovery)
    */
-  clear(): void {
-    this.activeBounties.clear();
+  importState(state: Record<string, ActiveBounty>): void {
+    for (const [id, bounty] of Object.entries(state)) {
+      this.activeBounties.set(id, bounty);
+    }
+    log.info(`Imported ${Object.keys(state).length} bounties`);
   }
 }
 
 export const bountyManager = new BountyManager();
+

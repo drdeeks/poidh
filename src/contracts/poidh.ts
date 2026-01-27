@@ -3,6 +3,7 @@ import { walletManager } from '../wallet';
 import { POIDH_V3_ABI, Bounty, Claim, POIDH_CONSTANTS, calculateFee, calculateNetAmount } from './abis';
 import { config } from '../config';
 import { log } from '../utils/logger';
+import axios from 'axios';
 
 /**
  * POIDHContract - Interface for interacting with POIDH V3 smart contract
@@ -488,13 +489,17 @@ export class POIDHContract {
 
   /**
    * Get claims for a bounty (paginated)
+   *
+   * NOTE: The POIDH V3 contract's claims() and getClaimsByBountyId() do NOT return the URI.
+   * The URI is only available in the createClaim transaction input data.
+   * We fetch URIs from Blockscout's indexed transaction data.
    */
   async getBountyClaims(bountyId: string, offset: number = 0): Promise<Claim[]> {
     const contract = this.getContract();
 
     try {
       const claims = await contract.getClaimsByBountyId(bountyId, offset);
-      return claims.map((c: any) => ({
+      const claimList = claims.map((c: any) => ({
         id: c.id || c[0],
         issuer: c.issuer || c[1],
         bountyId: c.bountyId || c[2],
@@ -503,10 +508,95 @@ export class POIDHContract {
         description: c.description || c[5],
         createdAt: c.createdAt || c[6],
         accepted: c.accepted || c[7],
+        uri: '', // Will be fetched separately
       }));
+
+      // Fetch URIs for each claim from Blockscout
+      for (const claim of claimList) {
+        try {
+          const uri = await this.fetchClaimUriFromBlockscout(claim.issuer, bountyId, claim.name);
+          if (uri) {
+            claim.uri = uri;
+          }
+        } catch (err) {
+          log.warn('Could not fetch URI for claim', { claimId: claim.id.toString() });
+        }
+      }
+
+      return claimList;
     } catch (error) {
       log.error('Failed to get claims', { bountyId, error: (error as Error).message });
       return [];
+    }
+  }
+
+  /**
+   * Fetch claim URI from Blockscout transaction data
+   *
+   * The URI is only stored in the createClaim() transaction input, not in contract storage.
+   * We query Blockscout's API to find the transaction and extract the URI parameter.
+   */
+  private async fetchClaimUriFromBlockscout(
+    claimerAddress: string,
+    bountyId: string,
+    claimName: string
+  ): Promise<string | null> {
+    try {
+      const baseUrl = config.chainId === 8453
+        ? 'https://base.blockscout.com'
+        : 'https://base-sepolia.blockscout.com';
+
+      // Get transactions from the claimer to the POIDH contract
+      const response = await axios.get(
+        `${baseUrl}/api/v2/addresses/${claimerAddress}/transactions`,
+        { timeout: 10000 }
+      );
+
+      const transactions = response.data?.items || [];
+
+      // Find createClaim transactions to the POIDH contract for this bounty
+      for (const tx of transactions) {
+        const toAddress = typeof tx.to === 'object' ? tx.to?.hash : tx.to;
+
+        if (toAddress?.toLowerCase() !== config.poidhContractAddress.toLowerCase()) {
+          continue;
+        }
+
+        if (tx.method !== 'createClaim') {
+          continue;
+        }
+
+        const decoded = tx.decoded_input;
+        if (!decoded?.parameters) {
+          continue;
+        }
+
+        // Check if this transaction is for our bounty
+        const txBountyId = decoded.parameters.find((p: any) => p.name === 'bountyId')?.value;
+        const txUri = decoded.parameters.find((p: any) => p.name === 'uri')?.value;
+        const txName = decoded.parameters.find((p: any) => p.name === 'name')?.value;
+
+        if (txBountyId?.toString() === bountyId.toString()) {
+          // If multiple claims from same user, match by name
+          if (txName && txName !== claimName) {
+            continue;
+          }
+
+          if (txUri) {
+            log.info('Found claim URI from Blockscout', {
+              bountyId,
+              claimerAddress: claimerAddress.slice(0, 10) + '...',
+              uri: txUri.slice(0, 60) + '...'
+            });
+            return txUri;
+          }
+        }
+      }
+
+      return null;
+    } catch (error) {
+      log.warn('Blockscout API error', { error: (error as Error).message });
+      return null;
     }
   }
 
@@ -664,3 +754,4 @@ export class POIDHContract {
 }
 
 export const poidhContract = new POIDHContract();
+

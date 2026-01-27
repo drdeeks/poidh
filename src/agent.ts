@@ -99,14 +99,16 @@ export class AutonomousBountyAgent {
       deadline: new Date(bountyConfig.deadline * 1000).toISOString(),
     });
 
-    // Create bounty through manager (handles on-chain creation)
-    const bounty = await bountyManager.createBounty(bountyConfig);
+    // Verify sufficient balance
+    const hasBalance = await walletManager.hasSufficientBalance(bountyConfig.rewardEth);
+    if (!hasBalance) {
+      throw new Error(
+        `Insufficient balance to create bounty. Need at least ${bountyConfig.rewardEth} ETH + gas`
+      );
+    }
 
-    log.autonomous('Bounty created successfully', {
-      configId: bountyConfig.id,
-      onChainId: bounty.onChainId,
-      txHash: bounty.createTxHash,
-    });
+    // Create the bounty
+    const bounty = await bountyManager.createBounty(bountyConfig);
 
     // Log to audit trail
     auditTrail.log('BOUNTY_CREATED', {
@@ -118,21 +120,48 @@ export class AutonomousBountyAgent {
       deadline: new Date(bountyConfig.deadline * 1000).toISOString(),
     }, bounty.createTxHash);
 
+    log.bounty('Successfully created and funded', bountyConfig.id, {
+      onChainId: bounty.onChainId,
+      txHash: bounty.createTxHash,
+    });
+
     return bounty;
   }
 
   /**
-   * Launch a production bounty by template name
+   * Launch a production bounty from pre-configured templates
+   *
+   * Available bounty types:
+   * - 'proveOutside': Quick outdoor photo verification
+   * - 'handwrittenDate': Handwritten note with date
+   * - 'mealPhoto': Current meal photo
+   * - 'objectTower': Creative object stacking (AI-judged)
+   * - 'shadowArt': Creative shadow photography (AI-judged)
+   * - 'animalPhoto': Best animal photo (AI-judged)
    */
   async launchProductionBounty(
-    templateName: keyof typeof PRODUCTION_BOUNTIES
+    bountyType: keyof typeof PRODUCTION_BOUNTIES,
+    overrides?: Partial<BountyConfig>
   ): Promise<ActiveBounty> {
-    const bountyConfig = createFreshBounty(templateName);
-    return this.createBounty(bountyConfig);
+    // Validate bounty type exists
+    if (!(bountyType in PRODUCTION_BOUNTIES)) {
+      throw new Error(`Unknown bounty type: ${String(bountyType)}. Available: ${Object.keys(PRODUCTION_BOUNTIES).join(', ')}`);
+    }
+
+    // Create fresh config with new ID and deadline (calculated at runtime)
+    const freshConfig = createFreshBounty(bountyType, overrides);
+
+    log.info(`🎯 Launching production bounty: ${String(bountyType)}`, {
+      name: freshConfig.name,
+      selectionMode: freshConfig.selectionMode,
+      reward: `${freshConfig.rewardEth} ETH`,
+    });
+
+    return this.createBounty(freshConfig);
   }
 
   /**
-   * Start the agent (monitoring and evaluation loops)
+   * Start the autonomous agent loop
    */
   start(): void {
     if (this.isRunning) {
@@ -141,15 +170,15 @@ export class AutonomousBountyAgent {
     }
 
     this.isRunning = true;
-    log.autonomous('Agent started - fully autonomous operation engaged');
+    log.info('🚀 Autonomous agent started');
 
     // Start submission monitor
     submissionMonitor.start();
 
-    // Start evaluation loop (checks for bounties to evaluate)
+    // Start evaluation loop (runs every 10 seconds)
     this.evaluationInterval = setInterval(
-      () => this.runEvaluationCycle(),
-      config.pollingInterval * 1000
+      () => this.evaluationLoop(),
+      10000
     );
   }
 
@@ -157,88 +186,141 @@ export class AutonomousBountyAgent {
    * Stop the agent
    */
   stop(): void {
-    if (!this.isRunning) return;
-
-    this.isRunning = false;
-    submissionMonitor.stop();
-
     if (this.evaluationInterval) {
       clearInterval(this.evaluationInterval);
       this.evaluationInterval = null;
     }
-
-    log.autonomous('Agent stopped');
+    submissionMonitor.stop();
+    this.isRunning = false;
+    log.info('🛑 Autonomous agent stopped');
   }
 
   /**
-   * Run one evaluation cycle
+   * Main evaluation loop - checks for submissions to evaluate
    */
-  private async runEvaluationCycle(): Promise<void> {
-    // Check for first-valid bounties with new submissions
+  private async evaluationLoop(): Promise<void> {
     const activeBounties = bountyManager.getBountiesByStatus(BountyStatus.ACTIVE);
 
     for (const bounty of activeBounties) {
-      if (bounty.config.selectionMode === SelectionMode.FIRST_VALID) {
-        await this.checkFirstValidBounty(bounty);
+      try {
+        await this.processBounty(bounty);
+      } catch (error) {
+        log.error('Error processing bounty', {
+          bountyId: bounty.config.id,
+          error: (error as Error).message,
+        });
       }
     }
 
-    // Check for AI-judged bounties past deadline
+    // Also check expired bounties that need evaluation
     const evaluatingBounties = bountyManager.getBountiesByStatus(
       BountyStatus.EVALUATING
     );
 
     for (const bounty of evaluatingBounties) {
-      if (bounty.config.selectionMode === SelectionMode.AI_JUDGED) {
-        await this.evaluateAIJudgedBounty(bounty);
+      try {
+        await this.finalizeBounty(bounty);
+      } catch (error) {
+        log.error('Error finalizing bounty', {
+          bountyId: bounty.config.id,
+          error: (error as Error).message,
+        });
       }
     }
   }
 
   /**
-   * Check a first-valid bounty for winning submission
+   * Process an active bounty
    */
-  private async checkFirstValidBounty(bounty: ActiveBounty): Promise<void> {
-    // Get unprocessed submissions
-    const newSubmissions = bounty.submissions.filter(
-      (s) => !s.validationResult && !s.aiEvaluation
+  private async processBounty(bounty: ActiveBounty): Promise<void> {
+    // For first-valid bounties, evaluate submissions immediately
+    if (bounty.config.selectionMode === SelectionMode.FIRST_VALID) {
+      await this.processFirstValidBounty(bounty);
+    }
+
+    // Check if bounty has expired
+    if (bountyManager.isExpired(bounty.config.id)) {
+      log.bounty('Deadline reached', bounty.config.id, {
+        submissions: bounty.submissions.length,
+      });
+
+      if (bounty.config.selectionMode === SelectionMode.AI_JUDGED) {
+        bountyManager.updateStatus(bounty.config.id, BountyStatus.EVALUATING);
+      } else if (bounty.submissions.length === 0) {
+        log.bounty('Expired with no submissions', bounty.config.id);
+        bountyManager.updateStatus(bounty.config.id, BountyStatus.EXPIRED);
+      }
+    }
+  }
+
+  /**
+   * Process first-valid bounty - evaluate new submissions immediately
+   */
+  private async processFirstValidBounty(bounty: ActiveBounty): Promise<void> {
+    // Find unvalidated submissions
+    const unvalidated = bounty.submissions.filter(
+      (s) => s.validationResult === undefined
     );
 
-    for (const submission of newSubmissions) {
+    for (const submission of unvalidated) {
+      log.info('⚡ Evaluating submission for first-valid bounty', {
+        bountyId: bounty.config.id,
+        submissionId: submission.id,
+        submitter: submission.submitter,
+      });
+
       const result = await evaluationEngine.evaluateForFirstValid(
         submission,
         bounty.config
       );
 
       if (result.isValid) {
-        // We have a winner!
-        log.autonomous('FIRST VALID WINNER FOUND', {
+        // WINNER FOUND! Pay out immediately
+        log.autonomous('First valid submission found - paying out', {
           bountyId: bounty.config.id,
           winner: submission.submitter,
         });
 
-        await this.payoutWinner(bounty, result.submission, result.rationale);
-        return; // Stop checking after first valid
+        await this.payoutWinner(bounty, submission, result.rationale);
+        return; // Stop processing this bounty
+      } else {
+        log.info('❌ Submission did not pass validation', {
+          bountyId: bounty.config.id,
+          submitter: submission.submitter,
+          reason: result.rationale,
+        });
       }
     }
   }
 
   /**
-   * Evaluate an AI-judged bounty
+   * Finalize an expired AI-judged bounty
    */
-  private async evaluateAIJudgedBounty(bounty: ActiveBounty): Promise<void> {
-    log.autonomous('Evaluating AI-judged bounty', {
-      bountyId: bounty.config.id,
-      submissions: bounty.submissions.length,
-    });
-
-    const selection = await evaluationEngine.selectWinnerAIJudged(bounty);
-
-    if (selection) {
-      await this.payoutWinner(bounty, selection.winner, selection.rationale);
-    } else {
-      log.bounty('No valid winner found', bounty.config.id);
+  private async finalizeBounty(bounty: ActiveBounty): Promise<void> {
+    if (bounty.submissions.length === 0) {
+      log.bounty('No submissions - marking expired', bounty.config.id);
       bountyManager.updateStatus(bounty.config.id, BountyStatus.EXPIRED);
+      return;
+    }
+
+    if (bounty.config.selectionMode === SelectionMode.AI_JUDGED) {
+      log.autonomous('Finalizing AI-judged bounty', {
+        bountyId: bounty.config.id,
+        submissions: bounty.submissions.length,
+      });
+
+      const selection = await evaluationEngine.selectWinnerAIJudged(bounty);
+
+      if (selection) {
+        await this.payoutWinner(
+          bounty,
+          selection.winner,
+          selection.rationale
+        );
+      } else {
+        log.bounty('No valid winner found', bounty.config.id);
+        bountyManager.updateStatus(bounty.config.id, BountyStatus.EXPIRED);
+      }
     }
   }
 
@@ -524,3 +606,4 @@ if (require.main === module) {
 
   main();
 }
+
