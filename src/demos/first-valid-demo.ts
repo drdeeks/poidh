@@ -6,7 +6,7 @@
  *
  * Bounty: "Handwritten Date Challenge"
  * - Take a photo of a handwritten note with today's date
- * - First valid submission wins 0.001 ETH
+ * - First valid submission wins 0.002 ETH
  *
  * Run: npm run demo:first-valid
  */
@@ -41,7 +41,7 @@ async function runFirstValidDemo() {
     console.log(`📍 Network: ${status.network}`);
 
     // Verify sufficient balance
-    const requiredEth = 0.001;
+    const requiredEth = 0.002; // Bounty amount (POIDH V3 minimum is ~0.0015 ETH)
     const balance = parseFloat(walletInfo.balance);
     if (balance < requiredEth + 0.0005) { // Need bounty + gas (~0.0005 ETH)
       throw new Error(
@@ -57,7 +57,7 @@ async function runFirstValidDemo() {
     const bountyConfig = {
       ...DEMO_FIRST_VALID_BOUNTY,
       deadline: freshDeadline,
-      rewardEth: '0.001', // Always use real funds (0 ETH causes contract revert)
+      rewardEth: '0.002', // Bounty amount (POIDH V3 minimum is ~0.0015 ETH)
     };
 
     console.log(`\n⏰ Fresh deadline calculated: ${new Date(freshDeadline * 1000).toISOString()}`);
@@ -83,7 +83,6 @@ async function runFirstValidDemo() {
     console.log(`On-Chain ID: ${bounty.onChainId}`);
     console.log(`Create TX: ${bounty.createTxHash}`);
     console.log(`Status: ${bounty.status}`);
-    console.log(`View on POIDH: https://poidh.xyz/base/bounty/${bounty.onChainId}`);
     console.log('━'.repeat(60));
 
     // Start the agent to monitor for submissions

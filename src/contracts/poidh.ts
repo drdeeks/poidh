@@ -75,34 +75,46 @@ export class POIDHContract {
    *
    * @param name - Bounty title
    * @param description - Detailed description of requirements
-   * @param amountEth - Bounty reward in ETH
    * @param deadlineTimestamp - Unix timestamp for deadline
+   * @param amountEth - Bounty reward in ETH (sent as msg.value)
    * @returns Bounty ID and transaction hash
    */
   async createSoloBounty(
     name: string,
     description: string,
-    amountEth: string,
-    deadlineTimestamp: number
+    deadlineTimestamp: number,
+    amountEth: string
   ): Promise<{ bountyId: string; txHash: string }> {
     const contract = this.getContract();
 
     const fee = calculateFee(parseEther(amountEth));
     const netAmount = calculateNetAmount(parseEther(amountEth));
 
+    const valueWei = parseEther(amountEth);
+
     log.autonomous('Creating solo bounty', {
       name,
       amount: `${amountEth} ETH`,
+      valueWei: valueWei.toString(),
       fee: `${formatEther(fee)} ETH (2.5%)`,
       netReward: `${formatEther(netAmount)} ETH`,
       deadline: new Date(deadlineTimestamp * 1000).toISOString(),
+      deadlineTimestamp,
     });
+
+    // Debug: Log the exact parameters being sent
+    console.log('DEBUG: Contract call parameters:');
+    console.log('  name:', name);
+    console.log('  description length:', description.length);
+    console.log('  deadline:', deadlineTimestamp);
+    console.log('  value (wei):', valueWei.toString());
+    console.log('  value (ETH):', amountEth);
 
     const tx = await contract.createSoloBounty(
       name,
       description,
       deadlineTimestamp,
-      { value: parseEther(amountEth) }
+      { value: valueWei }
     );
 
     log.tx('Create Solo Bounty', tx.hash);
@@ -129,15 +141,15 @@ export class POIDHContract {
    *
    * @param name - Bounty title
    * @param description - Detailed description of requirements
-   * @param amountEth - Initial contribution in ETH
    * @param deadlineTimestamp - Unix timestamp for deadline
+   * @param amountEth - Initial contribution in ETH (sent as msg.value)
    * @returns Bounty ID and transaction hash
    */
   async createOpenBounty(
     name: string,
     description: string,
-    amountEth: string,
-    deadlineTimestamp: number
+    deadlineTimestamp: number,
+    amountEth: string
   ): Promise<{ bountyId: string; txHash: string }> {
     const contract = this.getContract();
 

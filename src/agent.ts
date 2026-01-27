@@ -19,7 +19,7 @@
  * that cannot be faked. Validation includes EXIF checks, freshness verification,
  * and AI-powered authenticity detection.
  */
-
+ 
 import { walletManager } from './wallet';
 import { poidhContract } from './contracts/poidh';
 import { bountyManager } from './bounty/manager';
@@ -38,7 +38,7 @@ import {
 } from './bounty/configs/production-bounties';
 import { log } from './utils/logger';
 import { config } from './config';
-
+ 
 /**
  * AutonomousBountyAgent - Main agent controller
  *
@@ -51,23 +51,23 @@ import { config } from './config';
 export class AutonomousBountyAgent {
   private isRunning = false;
   private evaluationInterval: ReturnType<typeof setInterval> | null = null;
-
+ 
   /**
    * Initialize the agent
    */
   async initialize(): Promise<void> {
     log.info('🤖 Initializing Autonomous Bounty Agent...');
-
+ 
     // Initialize wallet
     await walletManager.initialize();
-
+ 
     // Initialize contracts
     await poidhContract.initialize();
-
+ 
     // Log ready status
     const address = await walletManager.getAddress();
     const balance = await walletManager.getBalance();
-
+ 
     log.info('✅ Agent initialized successfully', {
       walletAddress: address,
       balance: `${balance} ETH`,
@@ -76,7 +76,7 @@ export class AutonomousBountyAgent {
       autoApproveGas: config.autoApproveGas,
     });
   }
-
+ 
   /**
    * Create and launch a bounty
    */
@@ -88,7 +88,7 @@ export class AutonomousBountyAgent {
       proofType: bountyConfig.proofType,
       deadline: new Date(bountyConfig.deadline * 1000).toISOString(),
     });
-
+ 
     // Verify sufficient balance
     const hasBalance = await walletManager.hasSufficientBalance(bountyConfig.rewardEth);
     if (!hasBalance) {
@@ -96,18 +96,18 @@ export class AutonomousBountyAgent {
         `Insufficient balance to create bounty. Need at least ${bountyConfig.rewardEth} ETH + gas`
       );
     }
-
+ 
     // Create the bounty
     const bounty = await bountyManager.createBounty(bountyConfig);
-
+ 
     log.bounty('Successfully created and funded', bountyConfig.id, {
       onChainId: bounty.onChainId,
       txHash: bounty.createTxHash,
     });
-
+ 
     return bounty;
   }
-
+ 
   /**
    * Launch a production bounty from pre-configured templates
    *
@@ -127,19 +127,19 @@ export class AutonomousBountyAgent {
     if (!(bountyType in PRODUCTION_BOUNTIES)) {
       throw new Error(`Unknown bounty type: ${String(bountyType)}. Available: ${Object.keys(PRODUCTION_BOUNTIES).join(', ')}`);
     }
-
+ 
     // Create fresh config with new ID and deadline (calculated at runtime)
     const freshConfig = createFreshBounty(bountyType, overrides);
-
+ 
     log.info(`🎯 Launching production bounty: ${String(bountyType)}`, {
       name: freshConfig.name,
       selectionMode: freshConfig.selectionMode,
       reward: `${freshConfig.rewardEth} ETH`,
     });
-
+ 
     return this.createBounty(freshConfig);
   }
-
+ 
   /**
    * Start the autonomous agent loop
    */
@@ -148,20 +148,20 @@ export class AutonomousBountyAgent {
       log.warn('Agent already running');
       return;
     }
-
+ 
     this.isRunning = true;
     log.info('🚀 Autonomous agent started');
-
+ 
     // Start submission monitor
     submissionMonitor.start();
-
+ 
     // Start evaluation loop (runs every 10 seconds)
     this.evaluationInterval = setInterval(
       () => this.evaluationLoop(),
       10000
     );
   }
-
+ 
   /**
    * Stop the agent
    */
@@ -174,13 +174,13 @@ export class AutonomousBountyAgent {
     this.isRunning = false;
     log.info('🛑 Autonomous agent stopped');
   }
-
+ 
   /**
    * Main evaluation loop - checks for submissions to evaluate
    */
   private async evaluationLoop(): Promise<void> {
     const activeBounties = bountyManager.getBountiesByStatus(BountyStatus.ACTIVE);
-
+ 
     for (const bounty of activeBounties) {
       try {
         await this.processBounty(bounty);
@@ -191,12 +191,12 @@ export class AutonomousBountyAgent {
         });
       }
     }
-
+ 
     // Also check expired bounties that need evaluation
     const evaluatingBounties = bountyManager.getBountiesByStatus(
       BountyStatus.EVALUATING
     );
-
+ 
     for (const bounty of evaluatingBounties) {
       try {
         await this.finalizeBounty(bounty);
@@ -208,7 +208,7 @@ export class AutonomousBountyAgent {
       }
     }
   }
-
+ 
   /**
    * Process an active bounty
    */
@@ -217,13 +217,13 @@ export class AutonomousBountyAgent {
     if (bounty.config.selectionMode === SelectionMode.FIRST_VALID) {
       await this.processFirstValidBounty(bounty);
     }
-
+ 
     // Check if bounty has expired
     if (bountyManager.isExpired(bounty.config.id)) {
       log.bounty('Deadline reached', bounty.config.id, {
         submissions: bounty.submissions.length,
       });
-
+ 
       if (bounty.config.selectionMode === SelectionMode.AI_JUDGED) {
         bountyManager.updateStatus(bounty.config.id, BountyStatus.EVALUATING);
       } else if (bounty.submissions.length === 0) {
@@ -232,7 +232,7 @@ export class AutonomousBountyAgent {
       }
     }
   }
-
+ 
   /**
    * Process first-valid bounty - evaluate new submissions immediately
    */
@@ -241,26 +241,26 @@ export class AutonomousBountyAgent {
     const unvalidated = bounty.submissions.filter(
       (s) => s.validationResult === undefined
     );
-
+ 
     for (const submission of unvalidated) {
       log.info('⚡ Evaluating submission for first-valid bounty', {
         bountyId: bounty.config.id,
         submissionId: submission.id,
         submitter: submission.submitter,
       });
-
+ 
       const result = await evaluationEngine.evaluateForFirstValid(
         submission,
         bounty.config
       );
-
+ 
       if (result.isValid) {
         // WINNER FOUND! Pay out immediately
         log.autonomous('First valid submission found - paying out', {
           bountyId: bounty.config.id,
           winner: submission.submitter,
         });
-
+ 
         await this.payoutWinner(bounty, submission, result.rationale);
         return; // Stop processing this bounty
       } else {
@@ -272,7 +272,7 @@ export class AutonomousBountyAgent {
       }
     }
   }
-
+ 
   /**
    * Finalize an expired AI-judged bounty
    */
@@ -282,15 +282,15 @@ export class AutonomousBountyAgent {
       bountyManager.updateStatus(bounty.config.id, BountyStatus.EXPIRED);
       return;
     }
-
+ 
     if (bounty.config.selectionMode === SelectionMode.AI_JUDGED) {
       log.autonomous('Finalizing AI-judged bounty', {
         bountyId: bounty.config.id,
         submissions: bounty.submissions.length,
       });
-
+ 
       const selection = await evaluationEngine.selectWinnerAIJudged(bounty);
-
+ 
       if (selection) {
         await this.payoutWinner(
           bounty,
@@ -303,7 +303,7 @@ export class AutonomousBountyAgent {
       }
     }
   }
-
+ 
   /**
    * Pay out the winner
    */
@@ -317,25 +317,25 @@ export class AutonomousBountyAgent {
       winner: winner.submitter,
       reward: `${bounty.config.rewardEth} ETH`,
     });
-
+ 
     // Complete the bounty on-chain (triggers payout)
     const txHash = await bountyManager.completeBounty(
       bounty.config.id,
       winner,
       rationale
     );
-
+ 
     // Log the payout
     log.tx('WINNER PAYOUT', txHash, {
       bountyId: bounty.config.id,
       winner: winner.submitter,
       reward: bounty.config.rewardEth,
     });
-
+ 
     // Print winner announcement
     this.announceWinner(bounty, winner, rationale, txHash);
   }
-
+ 
   /**
    * Announce the winner (logs detailed output)
    */
@@ -348,7 +348,7 @@ export class AutonomousBountyAgent {
     const selectionMethod = bounty.config.selectionMode === SelectionMode.FIRST_VALID
       ? 'First Valid Submission'
       : 'GPT-4 Vision AI Judgment';
-
+ 
     const announcement = `
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                           🏆 WINNER ANNOUNCED 🏆                              ║
@@ -368,10 +368,10 @@ ${rationale.split('\n').slice(0, 5).map(line => '║  ' + line.substring(0, 74).
 ║  ✅ Payment executed autonomously - no human intervention                    ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 `;
-
+ 
     console.log(announcement);
   }
-
+ 
   /**
    * Get agent status
    */
@@ -385,7 +385,7 @@ ${rationale.split('\n').slice(0, 5).map(line => '║  ' + line.substring(0, 74).
     walletAddress?: string;
   } {
     const all = bountyManager.getAllBounties();
-
+ 
     return {
       isRunning: this.isRunning,
       activeBounties: all.filter(
@@ -398,7 +398,7 @@ ${rationale.split('\n').slice(0, 5).map(line => '║  ' + line.substring(0, 74).
       network: config.chainId === 8453 ? 'Base Mainnet' : 'Base Sepolia',
     };
   }
-
+ 
   /**
    * Get wallet info (async version)
    */
@@ -407,7 +407,7 @@ ${rationale.split('\n').slice(0, 5).map(line => '║  ' + line.substring(0, 74).
     const balance = await walletManager.getBalance();
     return { address, balance };
   }
-
+ 
   /**
    * List available production bounty templates
    */
@@ -419,15 +419,15 @@ ${rationale.split('\n').slice(0, 5).map(line => '║  ' + line.substring(0, 74).
 ║                                                                              ║
 ║  FIRST-VALID BOUNTIES (first valid submission wins):                         ║
 ║  ─────────────────────────────────────────────────────────────────────────── ║
-║  • proveOutside     - Prove you're outdoors right now (0.003 ETH)           ║
-║  • handwrittenDate  - Handwritten note with date + POIDH (0.002 ETH)        ║
-║  • mealPhoto        - Photo of your current meal (0.002 ETH)                ║
+║  • proveOutside     - Prove you're outdoors right now (0.0001 ETH)          ║
+║  • handwrittenDate  - Handwritten note with date + POIDH (0.0001 ETH)       ║
+║  • mealPhoto        - Photo of your current meal (0.0001 ETH)               ║
 ║                                                                              ║
 ║  AI-JUDGED BOUNTIES (GPT-4 Vision picks best after deadline):               ║
 ║  ─────────────────────────────────────────────────────────────────────────── ║
-║  • objectTower      - Creative object stacking contest (0.005 ETH)          ║
-║  • shadowArt        - Creative shadow photography (0.004 ETH)               ║
-║  • animalPhoto      - Best pet/wildlife photo (0.003 ETH)                   ║
+║  • objectTower      - Creative object stacking contest (0.0001 ETH)         ║
+║  • shadowArt        - Creative shadow photography (0.0001 ETH)              ║
+║  • animalPhoto      - Best pet/wildlife photo (0.0001 ETH)                  ║
 ║                                                                              ║
 ║  All bounties require REAL-WORLD PROOF:                                      ║
 ║  ✓ Valid EXIF data required                                                  ║
@@ -435,20 +435,23 @@ ${rationale.split('\n').slice(0, 5).map(line => '║  ' + line.substring(0, 74).
 ║  ✓ Screenshot detection enabled                                              ║
 ║  ✓ AI-generated image detection                                              ║
 ║                                                                              ║
+║  💡 All bounties use minimum ETH (~$0.25). Override with:                   ║
+║     npm run agent proveOutside -- --reward 0.01                              ║
+║                                                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 `);
   }
 }
-
+ 
 // Create singleton instance
 export const agent = new AutonomousBountyAgent();
-
+ 
 // CLI entry point
 if (require.main === module) {
   async function main() {
     const args = process.argv.slice(2);
     const bountyArg = args[0];
-
+ 
     console.log(`
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                              ║
@@ -462,16 +465,16 @@ if (require.main === module) {
 ║                                                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 `);
-
+ 
     try {
       // Handle 'list' command without initializing
       if (bountyArg === 'list') {
         agent.listAvailableBounties();
         process.exit(0);
       }
-
+ 
       await agent.initialize();
-
+ 
       // If bounty type specified, launch that bounty
       if (bountyArg && bountyArg in PRODUCTION_BOUNTIES) {
         const bountyType = bountyArg as keyof typeof PRODUCTION_BOUNTIES;
@@ -486,29 +489,29 @@ if (require.main === module) {
         console.log('\n💡 Usage: npm run agent <bounty-type>');
         console.log('   Example: npm run agent proveOutside\n');
       }
-
+ 
       agent.start();
-
+ 
       // Keep running
       process.on('SIGINT', () => {
         log.info('Received SIGINT, shutting down...');
         agent.stop();
         process.exit(0);
       });
-
+ 
       process.on('SIGTERM', () => {
         log.info('Received SIGTERM, shutting down...');
         agent.stop();
         process.exit(0);
       });
-
+ 
       log.info('Agent is running. Press Ctrl+C to stop.');
     } catch (error) {
       log.error('Failed to start agent', { error: (error as Error).message });
       process.exit(1);
     }
   }
-
+ 
   main();
 }
-
+ 

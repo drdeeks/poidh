@@ -198,7 +198,7 @@ First valid submission wins automatically!
   `.trim(),
   proofType: ProofType.PHOTO,
   selectionMode: SelectionMode.FIRST_VALID,
-  rewardEth: '0.001', // Small amount for demo
+  rewardEth: '0.002', // POIDH V3 minimum is ~0.0015 ETH
   deadline: deadlineFromNow(24),
   validation: {
     aiValidationPrompt: `
@@ -240,7 +240,7 @@ Judging criteria:
   `.trim(),
   proofType: ProofType.PHOTO,
   selectionMode: SelectionMode.AI_JUDGED,
-  rewardEth: '0.002', // Slightly higher for competitive bounty
+  rewardEth: '0.002', // POIDH V3 minimum is ~0.0015 ETH
   deadline: deadlineFromNow(48),
   validation: {
     aiValidationPrompt: `
@@ -265,3 +265,4 @@ Provide:
   },
   tags: ['demo', 'ai-judged', 'creative', 'challenge'],
 };
+

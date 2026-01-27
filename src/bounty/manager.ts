@@ -45,8 +45,8 @@ export class BountyManager {
       const { bountyId, txHash } = await poidhContract.createSoloBounty(
         config.name,
         this.formatBountyDescription(config),
-        config.rewardEth,
-        config.deadline
+        config.deadline,
+        config.rewardEth
       );
 
       activeBounty.onChainId = bountyId;
@@ -267,3 +267,4 @@ export class BountyManager {
 }
 
 export const bountyManager = new BountyManager();
+

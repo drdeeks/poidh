@@ -13,6 +13,7 @@ import { agent } from '../agent';
 import {
   DEMO_FIRST_VALID_BOUNTY,
   DEMO_AI_JUDGED_BOUNTY,
+  deadlineFromNow,
 } from '../bounty/templates';
 import { log } from '../utils/logger';
 import { config } from '../config';
@@ -44,6 +45,11 @@ async function runFullDemo() {
     log.info('🔧 Initializing autonomous agent...');
     await agent.initialize();
 
+    // Verify OpenAI key for AI-judged bounty
+    if (!config.openaiApiKey) {
+      log.warn('OPENAI_API_KEY not set - AI-judged bounty will not work fully');
+    }
+
     // Check wallet balance first
     const walletInfo = await agent.getWalletInfo();
     const status = agent.getStatus();
@@ -51,43 +57,31 @@ async function runFullDemo() {
     console.log(`💰 Balance: ${walletInfo.balance} ETH`);
     console.log(`📍 Network: ${status.network}`);
 
-    // Verify sufficient balance for both bounties
-    const totalRequired = 0.001 + 0.002; // Both bounties combined
+    // Verify sufficient balance (need 2 bounties + gas)
+    const requiredEth = 0.004; // 2 x 0.002 ETH bounties (POIDH V3 minimum is ~0.0015 ETH)
     const balance = parseFloat(walletInfo.balance);
-    if (balance < totalRequired + 0.001) {
+    if (balance < requiredEth + 0.001) {
       throw new Error(
-        `Insufficient balance! Have ${walletInfo.balance} ETH, need at least ${totalRequired + 0.001} ETH (bounties + gas).\n` +
+        `Insufficient balance! Have ${walletInfo.balance} ETH, need at least ${requiredEth + 0.001} ETH (2 bounties + gas).\n` +
         `Send Base ETH to: ${walletInfo.address}`
       );
     }
 
-    // Verify OpenAI key for AI-judged bounty
-    if (!config.openaiApiKey) {
-      log.warn('OPENAI_API_KEY not set - AI-judged bounty will not work fully');
-    }
-
-    // Calculate FRESH deadlines at runtime
-    const firstValidDeadline = Math.floor(Date.now() / 1000) + (60 * 60); // 1 hour from NOW
-    const aiJudgedDeadline = Math.floor(Date.now() / 1000) + (30 * 60); // 30 minutes from NOW
-
     // Configure bounties for demo
+    // IMPORTANT: Always calculate fresh deadlines at runtime!
     const firstValidConfig = {
       ...DEMO_FIRST_VALID_BOUNTY,
       id: 'demo-first-valid-full',
-      deadline: firstValidDeadline,
-      rewardEth: '0.001',
+      deadline: Math.floor(Date.now() / 1000) + (1 * 60 * 60), // 1 hour from NOW
+      rewardEth: '0.002', // POIDH V3 minimum is ~0.0015 ETH
     };
 
     const aiJudgedConfig = {
       ...DEMO_AI_JUDGED_BOUNTY,
       id: 'demo-ai-judged-full',
-      deadline: aiJudgedDeadline,
-      rewardEth: '0.002',
+      deadline: Math.floor(Date.now() / 1000) + (30 * 60), // 30 minutes from NOW
+      rewardEth: '0.002', // POIDH V3 minimum is ~0.0015 ETH
     };
-
-    console.log(`\n⏰ Fresh deadlines calculated:`);
-    console.log(`   First-Valid: ${new Date(firstValidDeadline * 1000).toISOString()}`);
-    console.log(`   AI-Judged: ${new Date(aiJudgedDeadline * 1000).toISOString()}`);
 
     // Display bounty summaries
     console.log('\n' + '═'.repeat(80));
@@ -116,12 +110,10 @@ async function runFullDemo() {
     log.info('📤 Creating first-valid bounty...');
     const bounty1 = await agent.createBounty(firstValidConfig);
     console.log(`✅ First-Valid Bounty: ${bounty1.onChainId} (TX: ${bounty1.createTxHash?.substring(0, 20)}...)`);
-    console.log(`   View: https://poidh.xyz/base/bounty/${bounty1.onChainId}`);
 
     log.info('📤 Creating AI-judged bounty...');
     const bounty2 = await agent.createBounty(aiJudgedConfig);
     console.log(`✅ AI-Judged Bounty: ${bounty2.onChainId} (TX: ${bounty2.createTxHash?.substring(0, 20)}...)`);
-    console.log(`   View: https://poidh.xyz/base/bounty/${bounty2.onChainId}`);
 
     // Start the agent
     log.info('🔍 Starting autonomous monitoring...');
@@ -150,15 +142,15 @@ async function runFullDemo() {
 
     // Status update loop
     const statusInterval = setInterval(() => {
-      const currentStatus = agent.getStatus();
+      const status = agent.getStatus();
       const bounties = bountyManager.getAllBounties();
 
       let totalSubmissions = 0;
       bounties.forEach((b) => (totalSubmissions += b.submissions.length));
 
       console.log(
-        `\n📊 [STATUS] Active: ${currentStatus.activeBounties} | Completed: ${currentStatus.completedBounties} | ` +
-        `Submissions: ${totalSubmissions} | Payouts: ${currentStatus.totalPayouts} ETH`
+        `\n📊 [STATUS] Active: ${status.activeBounties} | Completed: ${status.completedBounties} | ` +
+        `Submissions: ${totalSubmissions} | Payouts: ${status.totalPayouts} ETH`
       );
     }, 30000);
 
