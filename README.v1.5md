@@ -1,0 +1,933 @@
+     1→# Autonomous Bounty Bot for POIDH
+     2→
+     3→A fully autonomous bounty agent that creates, monitors, evaluates, and pays out real-world proof bounties on the [poidh](https://poidh.xyz) platform with **zero human intervention**.
+     4→
+     5→## Task Requirements Checklist
+     6→
+     7→| Requirement | Status | Implementation |
+     8→|-------------|--------|----------------|
+     9→| ✅ 100% Open Source | **Complete** | MIT License, public repo |
+    10→| ✅ Bot Controls Own Wallet | **Complete** | `src/wallet/index.ts` - Bot generates and manages its own private key |
+    11→| ✅ Creates POIDH Bounties | **Complete** | `src/contracts/poidh.ts` - Creates solo bounties on POIDH V3 |
+    12→| ✅ Real-World Action Bounties | **Complete** | Photos, videos, physical tasks with EXIF validation |
+    13→| ✅ Monitors Submissions | **Complete** | `src/bounty/monitor.ts` - Polls blockchain for claims |
+    14→| ✅ Autonomous Winner Selection | **Complete** | First-valid (deterministic) or GPT-4 Vision (AI-judged) |
+    15→| ✅ Clear Selection Logic | **Complete** | Transparent rationale logged for every decision |
+    16→| ✅ Autonomous Payout | **Complete** | `bountyManager.completeBounty()` triggers on-chain payment |
+    17→| ✅ Working Demo | **Complete** | `npm run demo:simulate` and production bounty configs |
+    18→
+    19→## How It Works
+    20→
+    21→```
+    22→╔══════════════════════════════════════════════════════════════════════════════╗
+    23→║                      AUTONOMOUS BOUNTY BOT FLOW                              ║
+    24→╠══════════════════════════════════════════════════════════════════════════════╣
+    25→║                                                                              ║
+    26→║   1. CREATE          2. MONITOR         3. EVALUATE        4. PAYOUT        ║
+    27→║   ────────           ─────────          ──────────         ────────         ║
+    28→║   Bot creates        Bot polls          Bot validates      Bot accepts      ║
+    29→║   bounty on-chain    for new claims     each submission    winning claim    ║
+    30→║   with ETH reward    from blockchain    autonomously       → ETH sent!      ║
+    31→║                                                                              ║
+    32→║                    NO HUMAN INTERVENTION REQUIRED                            ║
+    33→║                                                                              ║
+    34→╚══════════════════════════════════════════════════════════════════════════════╝
+    35→```
+    36→
+    37→### Winner Selection Modes
+    38→
+    39→**FIRST_VALID** - First submission that passes all validation checks wins immediately:
+    40→- Deterministic rules (EXIF, freshness, location, keywords)
+    41→- No waiting for deadline
+    42→- Instant payout on valid submission
+    43→
+    44→**AI_JUDGED** - GPT-4 Vision evaluates all submissions after deadline:
+    45→- Collects submissions until deadline
+    46→- AI scores each based on creativity/quality criteria
+    47→- Best submission wins with detailed rationale
+    48→
+    49→## Quick Start
+    50→
+    51→### 1. Clone and Install
+    52→
+    53→```bash
+    54→git clone https://github.com/YOUR_USERNAME/autonomous-bounty-bot.git
+    55→cd autonomous-bounty-bot
+    56→npm install
+    57→cp .env.example .env
+    58→```
+    59→
+    60→### 2. Configure Environment
+    61→
+    62→Edit your `.env` file:
+    63→
+    64→```bash
+    65→# Required: Your wallet's private key (with 0x prefix)
+    66→PRIVATE_KEY=0xYourPrivateKeyHere
+    67→
+    68→# Required: Base Mainnet RPC URL
+    69→RPC_URL=https://mainnet.base.org
+    70→
+    71→# Required: OpenAI API key for AI judging
+    72→OPENAI_API_KEY=sk-your-openai-api-key
+    73→```
+    74→
+    75→### 3. Fund Your Wallet
+    76→
+    77→Send Base ETH to your bot's wallet address for gas fees and bounty rewards.
+    78→
+    79→### 4. Build the Project
+    80→
+    81→```bash
+    82→npm run build
+    83→```
+    84→
+    85→### 5. Run the Bot
+    86→
+    87→```bash
+    88→# Run a specific production bounty
+    89→npm run agent:outside
+    90→
+    91→# Or run with custom bounty type
+    92→npx ts-node src/agent.ts proveOutside
+    93→```
+    94→
+    95→---
+    96→
+    97→## 📍 Viewing Your Bounty on POIDH
+    98→
+    99→Once the bot creates a bounty on-chain, it will appear on the POIDH website:
+   100→
+   101→```
+   102→https://poidh.xyz/base/bounty/[BOUNTY_ID]
+   103→```
+   104→
+   105→The console will log the bounty ID and direct link when created. Anyone can then submit proofs through the POIDH website, and the bot will automatically monitor and evaluate them.
+   106→
+   107→---
+   108→
+   109→## 🎛️ Complete Customization Guide
+   110→
+   111→### Creating Custom Bounties
+   112→
+   113→Edit `src/bounty/configs/production-bounties.ts` to add your own bounties:
+   114→
+   115→```typescript
+   116→import { BountyConfig, SelectionMode, ProofType } from '../types';
+   117→
+   118→// Helper function for deadlines
+   119→function deadlineFromNow(hours: number): number {
+   120→  return Math.floor(Date.now() / 1000) + hours * 60 * 60;
+   121→}
+   122→
+   123→export const PRODUCTION_BOUNTIES: Record<string, BountyConfig> = {
+   124→  // Add your custom bounty here
+   125→  'myCustomBounty': {
+   126→    id: 'my-custom-bounty',
+   127→    name: '🎯 My Custom Challenge',
+   128→    description: 'What participants will see as the main description',
+   129→    requirements: `
+   130→      Detailed requirements:
+   131→      1. First requirement
+   132→      2. Second requirement
+   133→      3. Third requirement
+   134→    `.trim(),
+   135→    proofType: ProofType.PHOTO,
+   136→    selectionMode: SelectionMode.FIRST_VALID,
+   137→    rewardEth: '0.005',
+   138→    deadline: deadlineFromNow(24),
+   139→    validation: {
+   140→      requireExif: true,
+   141→      maxAgeMinutes: 60,
+   142→      rejectScreenshots: true,
+   143→      rejectAIGenerated: true,
+   144→      aiValidationPrompt: 'Instructions for AI validation...',
+   145→    },
+   146→    tags: ['custom'],
+   147→  },
+   148→};
+   149→```
+   150→
+   151→Then add a script to `package.json`:
+   152→
+   153→```json
+   154→{
+   155→  "scripts": {
+   156→    "agent:my-custom": "npx ts-node src/agent.ts myCustomBounty"
+   157→  }
+   158→}
+   159→```
+   160→
+   161→Run it:
+   162→
+   163→```bash
+   164→npm run agent:my-custom
+   165→```
+   166→
+   167→---
+   168→
+   169→## ⏰ Deadline Configuration
+   170→
+   171→Control how long your bounty runs:
+   172→
+   173→```typescript
+   174→// Helper function (already in templates.ts)
+   175→function deadlineFromNow(hours: number): number {
+   176→  return Math.floor(Date.now() / 1000) + hours * 60 * 60;
+   177→}
+   178→
+   179→// Examples:
+   180→deadline: deadlineFromNow(1),     // 1 hour
+   181→deadline: deadlineFromNow(6),     // 6 hours
+   182→deadline: deadlineFromNow(24),    // 24 hours (1 day)
+   183→deadline: deadlineFromNow(48),    // 48 hours (2 days)
+   184→deadline: deadlineFromNow(168),   // 168 hours (1 week)
+   185→deadline: deadlineFromNow(720),   // 720 hours (30 days)
+   186→
+   187→// Specific date/time:
+   188→deadline: Math.floor(new Date('2025-02-15T18:00:00Z').getTime() / 1000),
+   189→
+   190→// Dynamic (end of today):
+   191→deadline: Math.floor(new Date().setHours(23, 59, 59, 999) / 1000),
+   192→```
+   193→
+   194→---
+   195→
+   196→## 💰 Reward Configuration
+   197→
+   198→Set bounty rewards in ETH:
+   199→
+   200→```typescript
+   201→// Small bounties (testing/demos)
+   202→rewardEth: '0.001',   // ~$2-3 USD
+   203→rewardEth: '0.002',   // ~$5 USD
+   204→rewardEth: '0.005',   // ~$12 USD
+   205→
+   206→// Medium bounties
+   207→rewardEth: '0.01',    // ~$25 USD
+   208→rewardEth: '0.02',    // ~$50 USD
+   209→rewardEth: '0.05',    // ~$125 USD
+   210→
+   211→// Larger bounties
+   212→rewardEth: '0.1',     // ~$250 USD
+   213→rewardEth: '0.5',     // ~$1,250 USD
+   214→rewardEth: '1.0',     // ~$2,500 USD
+   215→```
+   216→
+   217→> **Note**: Prices based on ~$2,500/ETH. Your wallet must have enough ETH for the reward + gas fees.
+   218→
+   219→---
+   220→
+   221→## 🏆 Selection Mode Configuration
+   222→
+   223→### FIRST_VALID (Instant Winner)
+   224→
+   225→First submission that passes ALL validation checks wins immediately. No waiting for deadline.
+   226→
+   227→```typescript
+   228→selectionMode: SelectionMode.FIRST_VALID,
+   229→```
+   230→
+   231→**Best for:**
+   232→- Time-sensitive challenges ("prove you're outside RIGHT NOW")
+   233→- Simple binary tasks (handwritten note, location check-in)
+   234→- When you want fast turnaround
+   235→
+   236→**How it works:**
+   237→1. Submission arrives
+   238→2. Bot runs validation checks (EXIF, freshness, screenshots, etc.)
+   239→3. If ALL checks pass → Winner! Payout triggered immediately
+   240→4. If checks fail → Rejected, bot continues monitoring
+   241→
+   242→### AI_JUDGED (Best Submission Wins)
+   243→
+   244→Bot collects all submissions until deadline, then GPT-4 Vision evaluates and picks the best one.
+   245→
+   246→```typescript
+   247→selectionMode: SelectionMode.AI_JUDGED,
+   248→```
+   249→
+   250→**Best for:**
+   251→- Creative challenges (best photo, most creative, etc.)
+   252→- Competitions where quality matters
+   253→- Subjective criteria that need AI judgment
+   254→
+   255→**How it works:**
+   256→1. Submissions collected until deadline
+   257→2. After deadline, bot filters valid submissions
+   258→3. GPT-4 Vision analyzes each image
+   259→4. AI scores based on your criteria (0-100)
+   260→5. Highest score wins with detailed rationale
+   261→6. Payout triggered automatically
+   262→
+   263→---
+   264→
+   265→## ✅ Validation Criteria Configuration
+   266→
+   267→The `validation` object controls what makes a submission valid:
+   268→
+   269→### EXIF Metadata Validation
+   270→
+   271→```typescript
+   272→validation: {
+   273→  // Require valid EXIF data (camera metadata)
+   274→  requireExif: true,
+   275→
+   276→  // Photo must be taken within last N minutes
+   277→  maxAgeMinutes: 30,    // 30 minutes
+   278→  maxAgeMinutes: 60,    // 1 hour
+   279→  maxAgeMinutes: 1440,  // 24 hours
+   280→}
+   281→```
+   282→
+   283→### Screenshot & AI Detection
+   284→
+   285→```typescript
+   286→validation: {
+   287→  // Reject screenshots (photos of screens)
+   288→  rejectScreenshots: true,
+   289→
+   290→  // Reject AI-generated images (DALL-E, Midjourney, etc.)
+   291→  rejectAIGenerated: true,
+   292→}
+   293→```
+   294→
+   295→### Location Requirements
+   296→
+   297→```typescript
+   298→validation: {
+   299→  location: {
+   300→    latitude: 40.7128,      // NYC latitude
+   301→    longitude: -74.0060,    // NYC longitude
+   302→    radiusMeters: 500,      // Within 500 meters
+   303→    description: 'New York City, Times Square area',
+   304→  },
+   305→}
+   306→```
+   307→
+   308→**Common locations:**
+   309→
+   310→```typescript
+   311→// Times Square, NYC
+   312→location: { latitude: 40.7580, longitude: -73.9855, radiusMeters: 200, description: 'Times Square' }
+   313→
+   314→// Eiffel Tower, Paris
+   315→location: { latitude: 48.8584, longitude: 2.2945, radiusMeters: 300, description: 'Eiffel Tower' }
+   316→
+   317→// Golden Gate Bridge, SF
+   318→location: { latitude: 37.8199, longitude: -122.4783, radiusMeters: 500, description: 'Golden Gate Bridge' }
+   319→
+   320→// Central Park, NYC
+   321→location: { latitude: 40.7829, longitude: -73.9654, radiusMeters: 1000, description: 'Central Park' }
+   322→```
+   323→
+   324→### Time Window Requirements
+   325→
+   326→```typescript
+   327→validation: {
+   328→  timeWindow: {
+   329→    // Only accept photos taken during this window
+   330→    startTimestamp: Math.floor(new Date('2025-02-01T08:00:00Z').getTime() / 1000),
+   331→    endTimestamp: Math.floor(new Date('2025-02-01T20:00:00Z').getTime() / 1000),
+   332→  },
+   333→}
+   334→```
+   335→
+   336→### AI Validation Prompt
+   337→
+   338→Custom instructions for GPT-4 Vision when validating submissions:
+   339→
+   340→```typescript
+   341→validation: {
+   342→  aiValidationPrompt: `
+   343→    Evaluate this submission for the "Best Sunset Photo" bounty.
+   344→
+   345→    Score on these criteria (total 100 points):
+   346→    1. COLOR COMPOSITION (0-40): Richness of colors, gradient quality
+   347→    2. OVERALL BEAUTY (0-35): Aesthetic appeal, emotional impact
+   348→    3. TECHNICAL QUALITY (0-25): Sharpness, exposure, framing
+   349→
+   350→    Disqualify (score 0) if:
+   351→    - Image appears AI-generated
+   352→    - No visible sunset/sky
+   353→    - Heavy filters or manipulation
+   354→
+   355→    Respond with JSON: { score, isValid, confidence, reasoning }
+   356→  `.trim(),
+   357→
+   358→  // Minimum AI confidence to accept (0-100)
+   359→  minAIConfidence: 70,
+   360→}
+   361→```
+   362→
+   363→### Combining Multiple Criteria
+   364→
+   365→```typescript
+   366→validation: {
+   367→  // All of these must pass
+   368→  requireExif: true,
+   369→  maxAgeMinutes: 60,
+   370→  rejectScreenshots: true,
+   371→  rejectAIGenerated: true,
+   372→  minAIConfidence: 75,
+   373→
+   374→  // Optional location requirement
+   375→  location: {
+   376→    latitude: 40.7128,
+   377→    longitude: -74.0060,
+   378→    radiusMeters: 1000,
+   379→    description: 'Manhattan, NYC',
+   380→  },
+   381→
+   382→  // Custom AI instructions
+   383→  aiValidationPrompt: `
+   384→    Verify this photo shows the NYC skyline.
+   385→    Must include recognizable buildings.
+   386→    Reject if taken from indoors.
+   387→  `.trim(),
+   388→}
+   389→```
+   390→
+   391→---
+   392→
+   393→## 📸 Proof Type Configuration
+   394→
+   395→```typescript
+   396→// Photo proof (most common)
+   397→proofType: ProofType.PHOTO,
+   398→
+   399→// Video proof
+   400→proofType: ProofType.VIDEO,
+   401→
+   402→// Text-based proof
+   403→proofType: ProofType.TEXT,
+   404→
+   405→// Any type accepted
+   406→proofType: ProofType.ANY,
+   407→```
+   408→
+   409→---
+   410→
+   411→## 🏷️ Tags Configuration
+   412→
+   413→Tags help categorize and filter bounties:
+   414→
+   415→```typescript
+   416→tags: ['photography', 'outdoors', 'nature'],
+   417→tags: ['creative', 'art', 'competition'],
+   418→tags: ['location', 'travel', 'landmark'],
+   419→tags: ['challenge', 'physical', 'fitness'],
+   420→tags: ['food', 'cooking', 'restaurant'],
+   421→```
+   422→
+   423→---
+   424→
+   425→## 📋 Complete Bounty Examples
+   426→
+   427→### Example 1: First-Valid Location Check-in
+   428→
+   429→```typescript
+   430→'timesSquareCheckin': {
+   431→  id: 'times-square-checkin',
+   432→  name: '📍 Times Square Check-In',
+   433→  description: 'Prove you are at Times Square right now! First valid photo wins.',
+   434→  requirements: `
+   435→    Submit a photo proving you're at Times Square, NYC.
+   436→
+   437→    Requirements:
+   438→    1. Photo must be taken within the last 30 minutes
+   439→    2. Must show recognizable Times Square elements (billboards, crowds, etc.)
+   440→    3. Must have valid EXIF/GPS data
+   441→    4. No screenshots or AI-generated images
+   442→
+   443→    First valid submission wins instantly!
+   444→  `.trim(),
+   445→  proofType: ProofType.PHOTO,
+   446→  selectionMode: SelectionMode.FIRST_VALID,
+   447→  rewardEth: '0.01',
+   448→  deadline: deadlineFromNow(24),
+   449→  validation: {
+   450→    requireExif: true,
+   451→    maxAgeMinutes: 30,
+   452→    rejectScreenshots: true,
+   453→    rejectAIGenerated: true,
+   454→    location: {
+   455→      latitude: 40.7580,
+   456→      longitude: -73.9855,
+   457→      radiusMeters: 200,
+   458→      description: 'Times Square, NYC',
+   459→    },
+   460→    aiValidationPrompt: `
+   461→      Verify this photo was taken at Times Square, NYC.
+   462→      Look for: bright billboards, crowded streets, iconic signage.
+   463→      The photo must clearly show Times Square elements.
+   464→    `.trim(),
+   465→  },
+   466→  tags: ['location', 'nyc', 'check-in', 'first-valid'],
+   467→},
+   468→```
+   469→
+   470→### Example 2: AI-Judged Creative Contest
+   471→
+   472→```typescript
+   473→'sunsetContest': {
+   474→  id: 'sunset-photo-contest',
+   475→  name: '🌅 Best Sunset Photo Contest',
+   476→  description: 'Capture the most beautiful sunset. AI judges the winner after 48 hours!',
+   477→  requirements: `
+   478→    Submit your best sunset photograph.
+   479→
+   480→    Rules:
+   481→    1. Must be a REAL photo taken by you (no AI-generated images)
+   482→    2. Photo must be taken within the last 7 days
+   483→    3. No heavy filters or digital manipulation
+   484→    4. Horizon and sun/sky must be clearly visible
+   485→
+   486→    Judging Criteria:
+   487→    - Color composition (40%)
+   488→    - Overall beauty/impact (35%)
+   489→    - Technical quality (25%)
+   490→
+   491→    All submissions collected for 48 hours, then AI picks the winner!
+   492→  `.trim(),
+   493→  proofType: ProofType.PHOTO,
+   494→  selectionMode: SelectionMode.AI_JUDGED,
+   495→  rewardEth: '0.025',
+   496→  deadline: deadlineFromNow(48),
+   497→  validation: {
+   498→    requireExif: true,
+   499→    maxAgeMinutes: 10080, // 7 days
+   500→    rejectScreenshots: true,
+   501→    rejectAIGenerated: true,
+   502→    minAIConfidence: 60,
+   503→    aiValidationPrompt: `
+   504→      Judge this sunset photograph for a contest.
+   505→
+   506→      Score on these criteria (total 100 points):
+   507→      1. COLOR COMPOSITION (0-40): Richness of colors, gradient quality, contrast between sky elements
+   508→      2. BEAUTY/IMPACT (0-35): Overall aesthetic appeal, emotional impact, memorable quality
+   509→      3. TECHNICAL QUALITY (0-25): Sharpness, proper exposure, good framing/composition
+   510→
+   511→      Disqualify (score 0) if:
+   512→      - Image appears AI-generated (look for artifacts, unnatural elements)
+   513→      - No visible sunset or sky
+   514→      - Heavily filtered or obviously manipulated
+   515→      - Screenshot of another image
+   516→
+   517→      Provide detailed reasoning for each score component.
+   518→    `.trim(),
+   519→  },
+   520→  tags: ['contest', 'sunset', 'photography', 'ai-judged', 'creative'],
+   521→},
+   522→```
+   523→
+   524→### Example 3: Physical Challenge
+   525→
+   526→```typescript
+   527→'pushupChallenge': {
+   528→  id: 'pushup-video-challenge',
+   529→  name: '💪 10 Pushup Challenge',
+   530→  description: 'Record yourself doing 10 pushups with good form. AI judges the best technique!',
+   531→  requirements: `
+   532→    Submit a video of yourself doing 10 pushups.
+   533→
+   534→    Requirements:
+   535→    1. Full body must be visible in frame
+   536→    2. Must complete all 10 pushups
+   537→    3. Good form required (chest to ground, full arm extension)
+   538→    4. Video must be recorded within the last hour
+   539→    5. No editing or splicing
+   540→
+   541→    AI will judge based on form, consistency, and effort.
+   542→  `.trim(),
+   543→  proofType: ProofType.VIDEO,
+   544→  selectionMode: SelectionMode.AI_JUDGED,
+   545→  rewardEth: '0.015',
+   546→  deadline: deadlineFromNow(72),
+   547→  validation: {
+   548→    requireExif: true,
+   549→    maxAgeMinutes: 60,
+   550→    rejectScreenshots: true,
+   551→    rejectAIGenerated: true,
+   552→    aiValidationPrompt: `
+   553→      Evaluate this pushup video submission.
+   554→
+   555→      Verify:
+   556→      1. Person completes 10 full pushups
+   557→      2. Good form (chest near ground, full extension at top)
+   558→      3. Continuous video (no cuts or edits)
+   559→      4. Full body visible
+   560→
+   561→      Score on:
+   562→      - FORM (0-50): Proper technique, consistency
+   563→      - EFFORT (0-30): Smooth execution, controlled movement
+   564→      - PRESENTATION (0-20): Clear video, good angle
+   565→
+   566→      Reject if pushups are incomplete or form is dangerously bad.
+   567→    `.trim(),
+   568→  },
+   569→  tags: ['fitness', 'challenge', 'video', 'physical'],
+   570→},
+   571→```
+   572→
+   573→### Example 4: Handwritten Note (Simple First-Valid)
+   574→
+   575→```typescript
+   576→'handwrittenPoidh': {
+   577→  id: 'handwritten-poidh',
+   578→  name: '📝 Handwritten POIDH Note',
+   579→  description: 'Write "POIDH" and today\'s date on paper. First valid submission wins!',
+   580→  requirements: `
+   581→    Submit a photo showing:
+   582→    1. A handwritten note on paper
+   583→    2. The word "POIDH" clearly written
+   584→    3. Today's date in any format
+   585→    4. Must be your own handwriting (not printed)
+   586→
+   587→    Photo must be taken fresh (within 30 minutes).
+   588→    First valid submission wins immediately!
+   589→  `.trim(),
+   590→  proofType: ProofType.PHOTO,
+   591→  selectionMode: SelectionMode.FIRST_VALID,
+   592→  rewardEth: '0.002',
+   593→  deadline: deadlineFromNow(12),
+   594→  validation: {
+   595→    requireExif: true,
+   596→    maxAgeMinutes: 30,
+   597→    rejectScreenshots: true,
+   598→    rejectAIGenerated: true,
+   599→    aiValidationPrompt: `
+   600→      Verify this image shows a handwritten note with:
+   601→      1. The word "POIDH" clearly written by hand
+   602→      2. Today's date written on the same paper
+   603→      3. Appears to be genuine handwriting (not typed/printed)
+   604→      4. Paper and writing are clearly visible
+   605→
+   606→      Mark as VALID only if ALL criteria are met.
+   607→    `.trim(),
+   608→  },
+   609→  tags: ['simple', 'handwritten', 'first-valid', 'quick'],
+   610→},
+   611→```
+   612→
+   613→### Example 5: Pet Photo Contest
+   614→
+   615→```typescript
+   616→'petPhotoContest': {
+   617→  id: 'cutest-pet-contest',
+   618→  name: '🐾 Cutest Pet Photo Contest',
+   619→  description: 'Share a photo of your pet! AI will pick the cutest one.',
+   620→  requirements: `
+   621→    Submit a photo of your pet.
+   622→
+   623→    Rules:
+   624→    1. Must be YOUR pet (not a random animal)
+   625→    2. Pet must be clearly visible and in focus
+   626→    3. Photo taken within the last 24 hours
+   627→    4. Any type of pet welcome (dogs, cats, birds, fish, etc.)
+   628→
+   629→    AI judges on cuteness, photo quality, and personality captured.
+   630→  `.trim(),
+   631→  proofType: ProofType.PHOTO,
+   632→  selectionMode: SelectionMode.AI_JUDGED,
+   633→  rewardEth: '0.01',
+   634→  deadline: deadlineFromNow(72),
+   635→  validation: {
+   636→    requireExif: true,
+   637→    maxAgeMinutes: 1440, // 24 hours
+   638→    rejectScreenshots: true,
+   639→    rejectAIGenerated: true,
+   640→    minAIConfidence: 50,
+   641→    aiValidationPrompt: `
+   642→      Judge this pet photo for a "Cutest Pet" contest.
+   643→
+   644→      Score on (total 100 points):
+   645→      1. CUTENESS (0-50): How adorable is the pet? Expression, pose, appeal
+   646→      2. PHOTO QUALITY (0-30): Focus, lighting, composition
+   647→      3. PERSONALITY (0-20): Does the photo capture the pet's character?
+   648→
+   649→      Any type of pet is valid (dogs, cats, birds, reptiles, fish, etc.)
+   650→
+   651→      Reject if:
+   652→      - No animal visible
+   653→      - AI-generated image
+   654→      - Stock photo or screenshot
+   655→    `.trim(),
+   656→  },
+   657→  tags: ['pets', 'animals', 'contest', 'cute', 'ai-judged'],
+   658→},
+   659→```
+   660→
+   661→---
+   662→
+   663→## Production Bounty Templates (Built-in)
+   664→
+   665→The bot includes 6 ready-to-use bounty configurations:
+   666→
+   667→### First-Valid Bounties (instant winner)
+   668→
+   669→| Bounty | Command | Reward | Duration | Description |
+   670→|--------|---------|--------|----------|-------------|
+   671→| Prove Outside | `npm run agent:outside` | 0.003 ETH | 24h | Photo proving you're outdoors |
+   672→| Pet Photo | `npm run agent:pet` | 0.003 ETH | 48h | Photo of your pet |
+   673→| Coffee/Drink | `npm run agent:coffee` | 0.002 ETH | 24h | Photo of your coffee or drink |
+   674→
+   675→### AI-Judged Bounties (GPT-4 Vision picks winner)
+   676→
+   677→| Bounty | Command | Reward | Duration | Description |
+   678→|--------|---------|--------|----------|-------------|
+   679→| Object Tower | `npm run agent:tower` | 0.005 ETH | 48h | Most creative stack of objects |
+   680→| Sunset Photo | `npm run agent:sunset` | 0.004 ETH | 72h | Best sunset/sunrise photo |
+   681→| Street Art | `npm run agent:street-art` | 0.004 ETH | 72h | Best street art photo |
+   682→
+   683→---
+   684→
+   685→## Winner Selection Logic
+   686→
+   687→### First-Valid Mode
+   688→
+   689→```typescript
+   690→// Validation checks run in order:
+   691→1. Proof Content     - Does submission have retrievable content?
+   692→2. Media URL         - Is there a valid image/video URL?
+   693→3. EXIF Data         - Does photo have camera metadata?
+   694→4. Photo Freshness   - Was photo taken within time limit?
+   695→5. Screenshot Check  - Is this NOT a screenshot?
+   696→6. AI-Generated Check - Is this NOT AI-generated?
+   697→7. Location (if req) - Is photo within required radius?
+   698→8. AI Validation     - Does AI confirm requirements met?
+   699→
+   700→// FIRST submission passing ALL checks wins immediately
+   701→// Payout triggered automatically - no human review
+   702→```
+   703→
+   704→### AI-Judged Mode
+   705→
+   706→```typescript
+   707→// After deadline:
+   708→1. Filter valid submissions (pass basic checks)
+   709→2. Send all valid images to GPT-4 Vision
+   710→3. AI scores each 0-100 based on your criteria
+   711→4. Highest score wins
+   712→5. Detailed rationale logged
+   713→6. Payout triggered automatically
+   714→```
+   715→
+   716→---
+   717→
+   718→## Transparent Decision Making
+   719→
+   720→Every winner selection includes detailed rationale:
+   721→
+   722→```
+   723→╔══════════════════════════════════════════════════════════════════════════════╗
+   724→║                           🏆 WINNER ANNOUNCED 🏆                              ║
+   725→╠══════════════════════════════════════════════════════════════════════════════╣
+   726→║                                                                              ║
+   727→║  Bounty: Best Sunset Photo Contest                                           ║
+   728→║  Winner: 0x1234...abcd                                                       ║
+   729→║  Reward: 0.025 ETH                                                           ║
+   730→║  Selection: AI Judged (GPT-4 Vision)                                         ║
+   731→║  Score: 87/100                                                               ║
+   732→║  Payout TX: 0xabcd...1234                                                    ║
+   733→║                                                                              ║
+   734→╠══════════════════════════════════════════════════════════════════════════════╣
+   735→║  AI RATIONALE:                                                               ║
+   736→║                                                                              ║
+   737→║  Color Composition (36/40):                                                  ║
+   738→║  Stunning gradient from deep orange to purple. Rich, saturated colors       ║
+   739→║  with excellent contrast between the sun and surrounding sky.               ║
+   740→║                                                                              ║
+   741→║  Beauty/Impact (32/35):                                                      ║
+   742→║  Breathtaking composition with silhouetted trees adding depth.              ║
+   743→║  Evokes strong emotional response.                                          ║
+   744→║                                                                              ║
+   745→║  Technical Quality (19/25):                                                  ║
+   746→║  Sharp focus, good exposure. Minor noise in shadow areas.                   ║
+   747→║                                                                              ║
+   748→╠══════════════════════════════════════════════════════════════════════════════╣
+   749→║  ✅ Payment executed autonomously - no human intervention                    ║
+   750→╚══════════════════════════════════════════════════════════════════════════════╝
+   751→```
+   752→
+   753→---
+   754→
+   755→## POIDH V3 Contract Integration
+   756→
+   757→This bot integrates with **POIDH V3** on Base Mainnet:
+   758→
+   759→- **Contract**: `0x5555Fa783936C260f77385b4E153B9725feF1719`
+   760→- **Chain**: Base Mainnet (Chain ID: 8453)
+   761→- **Fee**: 2.5% (250 BPS)
+   762→- **Payment Pattern**: Pull-based (`withdraw()` function)
+   763→
+   764→### Key Contract Functions Used
+   765→
+   766→```typescript
+   767→// Create bounty
+   768→createSoloBounty(name, description) + { value: rewardWei }
+   769→
+   770→// Accept winning claim (triggers payout)
+   771→acceptClaim(bountyId, claimId)
+   772→
+   773→// Monitor claims
+   774→getBountyClaims(bountyId) → Claim[]
+   775→
+   776→// Withdraw winnings (for winners)
+   777→withdraw()
+   778→```
+   779→
+   780→---
+   781→
+   782→## Environment Variables
+   783→
+   784→```bash
+   785→# ═══════════════════════════════════════════════════════════════════════════
+   786→# REQUIRED
+   787→# ═══════════════════════════════════════════════════════════════════════════
+   788→
+   789→# Bot's private key (with 0x prefix)
+   790→PRIVATE_KEY=0x...
+   791→
+   792→# RPC endpoint for Base Mainnet
+   793→RPC_URL=https://mainnet.base.org
+   794→
+   795→# OpenAI API key for AI-judged bounties
+   796→OPENAI_API_KEY=sk-...
+   797→
+   798→# ═══════════════════════════════════════════════════════════════════════════
+   799→# OPTIONAL
+   800→# ═══════════════════════════════════════════════════════════════════════════
+   801→
+   802→# Polling interval in milliseconds (default: 30000 = 30 seconds)
+   803→POLL_INTERVAL=30000
+   804→
+   805→# OpenAI model for vision (default: gpt-4o)
+   806→OPENAI_VISION_MODEL=gpt-4o
+   807→
+   808→# Log level (debug, info, warn, error)
+   809→LOG_LEVEL=info
+   810→```
+   811→
+   812→---
+   813→
+   814→## NPM Scripts
+   815→
+   816→```bash
+   817→# Build
+   818→npm run build              # Compile TypeScript
+   819→
+   820→# Production Bounty Commands
+   821→npm run agent:outside      # Launch "prove outside" bounty
+   822→npm run agent:tower        # Launch "object tower" bounty (AI-judged)
+   823→npm run agent:pet          # Launch "pet photo" bounty
+   824→npm run agent:sunset       # Launch "sunset photo" bounty (AI-judged)
+   825→npm run agent:street-art   # Launch "street art" bounty (AI-judged)
+   826→npm run agent:coffee       # Launch "coffee/drink" bounty
+   827→
+   828→# Demos
+   829→npm run demo:first-valid   # Demo first-valid selection
+   830→npm run demo:ai-judged     # Demo AI-judged selection
+   831→
+   832→# Development
+   833→npm run dev                # Run in development mode
+   834→npm run typecheck          # TypeScript type checking
+   835→```
+   836→
+   837→---
+   838→
+   839→## Architecture
+   840→
+   841→```
+   842→autonomous-bounty-bot/
+   843→├── src/
+   844→│   ├── agent.ts                    # Main orchestration + CLI entry point
+   845→│   │
+   846→│   ├── wallet/
+   847→│   │   └── index.ts                # Bot wallet management
+   848→│   │
+   849→│   ├── contracts/
+   850→│   │   ├── abis.ts                 # POIDH V3 ABI definitions
+   851→│   │   └── poidh.ts                # Contract interaction layer
+   852→│   │
+   853→│   ├── bounty/
+   854→│   │   ├── types.ts                # Type definitions
+   855→│   │   ├── templates.ts            # Bounty template functions
+   856→│   │   ├── manager.ts              # Bounty lifecycle management
+   857→│   │   ├── monitor.ts              # Blockchain polling
+   858→│   │   └── configs/
+   859→│   │       └── production-bounties.ts  # Production bounty configs
+   860→│   │
+   861→│   ├── evaluation/
+   862→│   │   ├── index.ts                # Evaluation engine
+   863→│   │   ├── validator.ts            # Deterministic validation
+   864→│   │   └── ai-judge.ts             # GPT-4 Vision integration
+   865→│   │
+   866→│   ├── config/
+   867→│   │   └── index.ts                # Environment configuration
+   868→│   │
+   869→│   └── utils/
+   870→│       └── logger.ts               # Structured logging
+   871→│
+   872→├── .env.example                    # Environment template
+   873→├── package.json                    # Scripts and dependencies
+   874→└── README.md                       # This file
+   875→```
+   876→
+   877→---
+   878→
+   879→## Troubleshooting
+   880→
+   881→### "Insufficient balance" Error
+   882→
+   883→Your bot wallet needs ETH for gas fees and bounty rewards.
+   884→
+   885→```bash
+   886→# Check your wallet balance
+   887→# Send Base ETH to the address shown in logs
+   888→```
+   889→
+   890→### "Cannot find module" Error
+   891→
+   892→Dependencies not installed or not built:
+   893→
+   894→```bash
+   895→npm install
+   896→npm run build
+   897→```
+   898→
+   899→### "Contract call failed" Error
+   900→
+   901→Verify you're on the correct network (Base Mainnet, Chain ID 8453).
+   902→
+   903→### OpenAI Rate Limit
+   904→
+   905→For AI-judged bounties with many submissions, you may hit rate limits. The bot includes automatic delays between API calls.
+   906→
+   907→### No Submissions Appearing
+   908→
+   909→- Verify the bounty was created successfully (check the tx hash)
+   910→- Confirm the bounty appears on https://poidh.xyz/base/bounty/[ID]
+   911→- Check that the deadline hasn't passed
+   912→
+   913→---
+   914→
+   915→## Security Considerations
+   916→
+   917→- **Private Key**: Never commit your `.env` file
+   918→- **Wallet Funding**: Only fund with what you're willing to use
+   919→- **RPC Security**: Use authenticated RPC endpoints for production
+   920→- **Contract Verification**: Always verify contract addresses
+   921→
+   922→---
+   923→
+   924→## License
+   925→
+   926→MIT License - See [LICENSE](LICENSE) for details.
+   927→
+   928→---
+   929→
+   930→**Built for the poidh autonomous bounty challenge.**
+   931→
+   932→🤖 This bot operates fully autonomously after initialization - no human intervention required.
+   933→
