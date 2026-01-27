@@ -117,6 +117,30 @@ export class BountyManager {
   }
 
   /**
+   * Register an existing on-chain bounty for monitoring
+   * (Does not create a new bounty, just tracks an existing one)
+   */
+  registerExistingBounty(config: BountyConfig, onChainId: string): ActiveBounty {
+    log.bounty('Registering existing bounty', config.id, {
+      onChainId,
+      name: config.name,
+    });
+
+    const activeBounty: ActiveBounty = {
+      config,
+      status: BountyStatus.ACTIVE,
+      submissions: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      onChainId,
+    };
+
+    this.activeBounties.set(config.id, activeBounty);
+
+    return activeBounty;
+  }
+
+  /**
    * Get an active bounty by config ID
    */
   getBounty(configId: string): ActiveBounty | undefined {
@@ -180,15 +204,15 @@ export class BountyManager {
     bounty.status = status;
     bounty.updatedAt = Date.now();
 
-    log.bounty('Status updated', configId, { status });
+    log.bounty('Status updated', configId, { newStatus: status });
   }
 
   /**
-   * Mark bounty as completed with winner
+   * Complete a bounty (accept winning claim on-chain)
    */
   async completeBounty(
     configId: string,
-    winningSubmission: Submission,
+    winner: Submission,
     rationale: string
   ): Promise<string> {
     const bounty = this.activeBounties.get(configId);
@@ -197,74 +221,56 @@ export class BountyManager {
     }
 
     if (!bounty.onChainId) {
-      throw new Error('Bounty has no on-chain ID');
+      throw new Error(`Bounty has no on-chain ID: ${configId}`);
     }
 
-    log.autonomous('Completing bounty and paying winner', {
-      bountyId: configId,
-      onChainId: bounty.onChainId,
-      winner: winningSubmission.submitter,
-      claimId: winningSubmission.claimId,
+    log.bounty('Completing bounty', configId, {
+      winner: winner.submitter,
+      claimId: winner.claimId,
     });
 
-    // Accept the claim on-chain (triggers payout)
-    const txHash = await poidhContract.acceptClaim(
-      bounty.onChainId,
-      winningSubmission.claimId,
-      rationale
-    );
+    // Vote for the winning claim (this triggers payout in POIDH V3)
+    const txHash = await poidhContract.voteClaim(bounty.onChainId, true);
 
-    // Update bounty state
-    bounty.winnerSelection = {
-      winner: winningSubmission,
-      runnerUps: bounty.submissions.filter(
-        (s) => s.id !== winningSubmission.id
-      ),
-      method: bounty.config.selectionMode,
-      rationale,
-      selectedAt: Date.now(),
-      autonomous: true,
-    };
-    bounty.payoutTxHash = txHash;
+    // Update status
     bounty.status = BountyStatus.COMPLETED;
+    bounty.winner = winner;
+    bounty.completeTxHash = txHash;
+    bounty.completedAt = Date.now();
     bounty.updatedAt = Date.now();
 
-    log.winner(configId, winningSubmission.submitter, rationale);
+    log.bounty('Completed', configId, {
+      winner: winner.submitter,
+      txHash,
+    });
 
     return txHash;
   }
 
   /**
-   * Check if bounty deadline has passed
+   * Check if bounty has expired (past deadline)
    */
   isExpired(configId: string): boolean {
     const bounty = this.activeBounties.get(configId);
     if (!bounty) return false;
 
-    return Date.now() / 1000 > bounty.config.deadline;
+    return Date.now() > bounty.config.deadline * 1000;
   }
 
   /**
-   * Export bounty state for persistence/debugging
+   * Get submissions for a bounty
    */
-  exportState(): Record<string, ActiveBounty> {
-    const state: Record<string, ActiveBounty> = {};
-    for (const [id, bounty] of this.activeBounties) {
-      state[id] = bounty;
-    }
-    return state;
+  getSubmissions(configId: string): Submission[] {
+    const bounty = this.activeBounties.get(configId);
+    return bounty?.submissions || [];
   }
 
   /**
-   * Import bounty state (for recovery)
+   * Clear all bounties (for testing)
    */
-  importState(state: Record<string, ActiveBounty>): void {
-    for (const [id, bounty] of Object.entries(state)) {
-      this.activeBounties.set(id, bounty);
-    }
-    log.info(`Imported ${Object.keys(state).length} bounties`);
+  clear(): void {
+    this.activeBounties.clear();
   }
 }
 
 export const bountyManager = new BountyManager();
-
