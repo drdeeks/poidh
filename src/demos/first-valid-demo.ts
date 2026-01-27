@@ -41,11 +41,14 @@ async function runFirstValidDemo() {
     console.log(`📍 Network: ${status.network}`);
 
     // Verify sufficient balance
-    const requiredEth = 0.002; // Bounty amount (POIDH V3 minimum is ~0.0015 ETH)
+    // POIDH contract MIN_BOUNTY_AMOUNT = 0.001 ETH
+    const bountyAmount = '0.001'; // Exact minimum
+    const requiredEth = 0.001;
+    const gasBuffer = 0.0002; // Gas buffer
     const balance = parseFloat(walletInfo.balance);
-    if (balance < requiredEth + 0.0005) { // Need bounty + gas (~0.0005 ETH)
+    if (balance < requiredEth + gasBuffer) {
       throw new Error(
-        `Insufficient balance! Have ${walletInfo.balance} ETH, need at least ${requiredEth + 0.0005} ETH (bounty + gas).\n` +
+        `Insufficient balance! Have ${walletInfo.balance} ETH, need at least ${(requiredEth + gasBuffer).toFixed(4)} ETH (bounty + gas).\n` +
         `Send Base ETH to: ${walletInfo.address}`
       );
     }
@@ -57,7 +60,7 @@ async function runFirstValidDemo() {
     const bountyConfig = {
       ...DEMO_FIRST_VALID_BOUNTY,
       deadline: freshDeadline,
-      rewardEth: '0.002', // Bounty amount (POIDH V3 minimum is ~0.0015 ETH)
+      rewardEth: bountyAmount, // Just above POIDH V3 minimum (~0.0015 ETH)
     };
 
     console.log(`\n⏰ Fresh deadline calculated: ${new Date(freshDeadline * 1000).toISOString()}`);
@@ -124,4 +127,3 @@ async function runFirstValidDemo() {
 
 // Run the demo
 runFirstValidDemo();
-
