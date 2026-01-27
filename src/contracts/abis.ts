@@ -1,171 +1,142 @@
 /**
  * POIDH V3 Contract ABI
  *
- * This ABI matches the deployed PoidhV3 contract on Base Mainnet:
- * 0x5555Fa783936C260f77385b4E153B9725feF1719
+ * Based on the actual PoidhV3.sol contract.
+ * Contract Address (Base Mainnet): 0x5555Fa783936C260f77385b4E153B9725feF1719
  *
- * Contract Features:
- * - Solo bounties (issuer accepts claims directly)
- * - Open bounties (weighted voting by contributors)
- * - Pull-payment pattern for secure withdrawals
- * - 2.5% fee (250 BPS)
- * - Claim NFTs escrowed in contract
+ * IMPORTANT: Only EOAs can create bounties (msg.sender == tx.origin check)
  */
 
-// Complete POIDH V3 ABI (JSON format for ethers.js)
 export const POIDH_V3_ABI = [
   // ═══════════════════════════════════════════════════════════════════════════
   // EVENTS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // Bounty lifecycle events
-  'event BountyCreated(uint256 indexed bountyId, address indexed issuer, string name, string description, uint256 amount, uint256 deadline, bool isOpen)',
-  'event BountyContribution(uint256 indexed bountyId, address indexed contributor, uint256 amount)',
-  'event BountyCancelled(uint256 indexed bountyId)',
-  'event BountyCompleted(uint256 indexed bountyId, uint256 indexed winningClaimId, address indexed winner)',
-
-  // Claim events
-  'event ClaimCreated(uint256 indexed bountyId, uint256 indexed claimId, address indexed claimer, string uri)',
-  'event ClaimAccepted(uint256 indexed bountyId, uint256 indexed claimId)',
-  'event ClaimSubmittedForVote(uint256 indexed bountyId, uint256 indexed claimId)',
-
-  // Voting events
-  'event VoteCast(uint256 indexed bountyId, uint256 indexed claimId, address indexed voter, uint256 weight)',
-  'event VoteResolved(uint256 indexed bountyId, uint256 indexed winningClaimId)',
-
-  // Payment events
-  'event Withdrawal(address indexed payee, uint256 amount)',
-  'event FeeCollected(uint256 indexed bountyId, uint256 amount)',
+  'event BountyCreated(uint256 indexed id, address indexed issuer, string title, string description, uint256 amount, uint256 createdAt, bool isOpenBounty)',
+  'event ClaimCreated(uint256 indexed id, address indexed issuer, uint256 indexed bountyId, address bountyIssuer, string title, string description, uint256 createdAt, string imageUri)',
+  'event ClaimAccepted(uint256 indexed bountyId, uint256 indexed claimId, address indexed claimIssuer, address bountyIssuer, uint256 bountyAmount, uint256 payout, uint256 fee)',
+  'event BountyJoined(uint256 indexed bountyId, address indexed participant, uint256 amount, uint256 latestBountyBalance)',
+  'event BountyCancelled(uint256 indexed bountyId, address indexed issuer, uint256 issuerRefund)',
+  'event WithdrawFromOpenBounty(uint256 indexed bountyId, address indexed participant, uint256 amount, uint256 latestBountyAmount)',
+  'event Withdrawal(address indexed user, uint256 amount)',
+  'event WithdrawalTo(address indexed user, address indexed to, uint256 amount)',
+  'event VotingStarted(uint256 indexed bountyId, uint256 indexed claimId, uint256 deadline, uint256 issuerYesWeight, uint256 round)',
+  'event VoteCast(address indexed voter, uint256 indexed bountyId, uint256 indexed claimId, bool support, uint256 weight)',
+  'event VotingResolved(uint256 indexed bountyId, uint256 indexed claimId, bool passed, uint256 yes, uint256 no)',
+  'event RefundClaimed(uint256 indexed bountyId, address indexed participant, uint256 amount)',
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // READ FUNCTIONS - Bounty Queries
+  // CONSTANTS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // Get bounty by ID
-  'function bounties(uint256 bountyId) view returns (uint256 id, address issuer, string name, string description, uint256 amount, uint256 deadline, bool isOpen, bool isCompleted, bool isCancelled, uint256 winningClaimId)',
-
-  // Get bounty details (same as above but named function)
-  'function getBounty(uint256 bountyId) view returns (tuple(uint256 id, address issuer, string name, string description, uint256 amount, uint256 deadline, bool isOpen, bool isCompleted, bool isCancelled, uint256 winningClaimId))',
-
-  // Get all claims for a bounty
-  'function getClaims(uint256 bountyId) view returns (tuple(uint256 id, uint256 bountyId, address claimer, string uri, uint256 createdAt, bool accepted, bool inVoting, uint256 votesFor)[])',
-
-  // Get single claim
-  'function claims(uint256 claimId) view returns (uint256 id, uint256 bountyId, address claimer, string uri, uint256 createdAt, bool accepted, bool inVoting, uint256 votesFor)',
-
-  // Get claim count for bounty
-  'function getClaimCount(uint256 bountyId) view returns (uint256)',
-
-  // Total bounty count
-  'function bountyCount() view returns (uint256)',
-
-  // Total claim count
-  'function claimCount() view returns (uint256)',
+  'function FEE_BPS() view returns (uint256)',              // 250 (2.5%)
+  'function BPS_DENOM() view returns (uint256)',            // 10000
+  'function MIN_BOUNTY_AMOUNT() view returns (uint256)',    // Immutable, set at deploy
+  'function MIN_CONTRIBUTION() view returns (uint256)',     // Immutable, set at deploy
+  'function MAX_PARTICIPANTS() view returns (uint256)',     // 150
+  'function votingPeriod() view returns (uint256)',         // 2 days
+  'function treasury() view returns (address)',
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // READ FUNCTIONS - Contributions & Voting
+  // COUNTERS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // Get contributor's amount for a bounty
-  'function contributions(uint256 bountyId, address contributor) view returns (uint256)',
-
-  // Get all contributors for a bounty
-  'function getContributors(uint256 bountyId) view returns (address[])',
-
-  // Get participant count for open bounty
-  'function participantCount(uint256 bountyId) view returns (uint256)',
-
-  // Check if address has voted on a claim
-  'function hasVoted(uint256 bountyId, address voter) view returns (bool)',
-
-  // Get votes for a specific claim
-  'function getVotes(uint256 claimId) view returns (uint256)',
-
-  // Get voting end time for a claim
-  'function votingEndTime(uint256 claimId) view returns (uint256)',
+  'function bountyCounter() view returns (uint256)',
+  'function claimCounter() view returns (uint256)',
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // READ FUNCTIONS - Payments & Constants
+  // BOUNTY QUERIES
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // Check pending withdrawal balance
-  'function pendingWithdrawals(address payee) view returns (uint256)',
-
-  // Contract constants
-  'function FEE_BPS() view returns (uint256)',        // 250 (2.5%)
-  'function MAX_PARTICIPANTS() view returns (uint256)', // 150
-  'function votingPeriod() view returns (uint256)',   // 2 days
-
-  // Fee recipient
-  'function feeRecipient() view returns (address)',
-
-  // Owner
-  'function owner() view returns (address)',
+  'function bounties(uint256 bountyId) view returns (uint256 id, address issuer, string name, string description, uint256 amount, address claimer, uint256 createdAt, uint256 claimId)',
+  'function getBountiesLength() view returns (uint256)',
+  'function getBounties(uint256 offset) view returns (tuple(uint256 id, address issuer, string name, string description, uint256 amount, address claimer, uint256 createdAt, uint256 claimId)[])',
+  'function getBountiesByUser(address user, uint256 offset) view returns (tuple(uint256 id, address issuer, string name, string description, uint256 amount, address claimer, uint256 createdAt, uint256 claimId)[])',
+  'function userBounties(address user, uint256 index) view returns (uint256)',
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // WRITE FUNCTIONS - Bounty Creation
+  // CLAIM QUERIES
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // Create a solo bounty (issuer accepts claims)
-  'function createSoloBounty(string name, string description, uint256 deadline) payable returns (uint256 bountyId)',
+  'function claims(uint256 claimId) view returns (uint256 id, address issuer, uint256 bountyId, address bountyIssuer, string name, string description, uint256 createdAt, bool accepted)',
+  'function getClaimsByBountyId(uint256 bountyId, uint256 offset) view returns (tuple(uint256 id, address issuer, uint256 bountyId, address bountyIssuer, string name, string description, uint256 createdAt, bool accepted)[])',
+  'function getClaimsByUser(address user, uint256 offset) view returns (tuple(uint256 id, address issuer, uint256 bountyId, address bountyIssuer, string name, string description, uint256 createdAt, bool accepted)[])',
+  'function bountyClaims(uint256 bountyId, uint256 index) view returns (uint256)',
+  'function userClaims(address user, uint256 index) view returns (uint256)',
 
-  // Create an open bounty (weighted voting)
-  'function createOpenBounty(string name, string description, uint256 deadline) payable returns (uint256 bountyId)',
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PARTICIPANT QUERIES (Open Bounties)
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  // Contribute to an open bounty
-  'function contribute(uint256 bountyId) payable',
+  'function getParticipants(uint256 bountyId) view returns (address[], uint256[])',
+  'function getParticipantsPaged(uint256 bountyId, uint256 offset, uint256 limit) view returns (address[], uint256[])',
+  'function participants(uint256 bountyId, uint256 index) view returns (address)',
+  'function participantAmounts(uint256 bountyId, uint256 index) view returns (uint256)',
+  'function everHadExternalContributor(uint256 bountyId) view returns (bool)',
 
-  // Cancel bounty (only issuer, before any claims)
-  'function cancelBounty(uint256 bountyId)',
+  // ═══════════════════════════════════════════════════════════════════════════
+  // VOTING QUERIES
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  'function bountyCurrentVotingClaim(uint256 bountyId) view returns (uint256)',
+  'function bountyVotingTracker(uint256 bountyId) view returns (uint256 yes, uint256 no, uint256 deadline)',
+  'function voteRound(uint256 bountyId) view returns (uint256)',
+  'function voteWeightSnapshot(uint256 bountyId, address participant) view returns (uint256)',
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // WITHDRAWAL QUERIES
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  'function pendingWithdrawals(address account) view returns (uint256)',
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // WRITE FUNCTIONS - Bounty Creation (EOAs only!)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // NOTE: These functions require msg.sender == tx.origin (EOAs only, no contracts!)
+  'function createSoloBounty(string name, string description) payable',
+  'function createOpenBounty(string name, string description) payable',
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // WRITE FUNCTIONS - Open Bounty Funding
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  'function joinOpenBounty(uint256 bountyId) payable',
+  'function withdrawFromOpenBounty(uint256 bountyId)',
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // WRITE FUNCTIONS - Cancellation
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  'function cancelSoloBounty(uint256 bountyId)',
+  'function cancelOpenBounty(uint256 bountyId)',
+  'function claimRefundFromCancelledOpenBounty(uint256 bountyId)',
 
   // ═══════════════════════════════════════════════════════════════════════════
   // WRITE FUNCTIONS - Claims
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // Submit a claim with proof URI
-  'function createClaim(uint256 bountyId, string uri) returns (uint256 claimId)',
-
-  // Accept a claim (solo bounties - issuer only)
+  'function createClaim(uint256 bountyId, string name, string description, string uri)',
   'function acceptClaim(uint256 bountyId, uint256 claimId)',
 
   // ═══════════════════════════════════════════════════════════════════════════
   // WRITE FUNCTIONS - Voting (Open Bounties)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // Submit claim for voting (open bounties)
   'function submitClaimForVote(uint256 bountyId, uint256 claimId)',
-
-  // Vote for a claim (weighted by contribution)
-  'function voteClaim(uint256 bountyId, uint256 claimId)',
-
-  // Resolve voting after period ends
+  'function voteClaim(uint256 bountyId, bool vote)',
   'function resolveVote(uint256 bountyId)',
+  'function resetVotingPeriod(uint256 bountyId)',
 
   // ═══════════════════════════════════════════════════════════════════════════
   // WRITE FUNCTIONS - Withdrawals
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // Withdraw pending balance (pull-payment pattern)
   'function withdraw()',
-
-  // Withdraw to specific address (owner only)
-  'function withdrawTo(address payee)',
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // ADMIN FUNCTIONS
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  // Set fee recipient (owner only)
-  'function setFeeRecipient(address newRecipient)',
-
-  // Set voting period (owner only)
-  'function setVotingPeriod(uint256 newPeriod)',
-
-  // Transfer ownership
-  'function transferOwnership(address newOwner)',
+  'function withdrawTo(address to)',
 ];
 
-// Legacy aliases for backwards compatibility
+// Legacy aliases
 export const SOLO_BOUNTY_ABI = POIDH_V3_ABI;
 export const OPEN_BOUNTY_ABI = POIDH_V3_ABI;
 
@@ -173,64 +144,39 @@ export const OPEN_BOUNTY_ABI = POIDH_V3_ABI;
 // TYPE DEFINITIONS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/**
- * Bounty data structure from contract
- */
 export interface Bounty {
   id: bigint;
   issuer: string;
   name: string;
   description: string;
   amount: bigint;
-  deadline: bigint;
-  isOpen: boolean;
-  isCompleted: boolean;
-  isCancelled: boolean;
-  winningClaimId: bigint;
+  claimer: string;      // 0 = active, issuer = cancelled/closed, other = accepted
+  createdAt: bigint;
+  claimId: bigint;      // accepted claim id (0 if none)
 }
 
-/**
- * Claim data structure from contract
- */
 export interface Claim {
   id: bigint;
+  issuer: string;
   bountyId: bigint;
-  claimer: string;
-  uri: string;
+  bountyIssuer: string;
+  name: string;
+  description: string;
   createdAt: bigint;
   accepted: boolean;
-  inVoting: boolean;
-  votesFor: bigint;
 }
 
-/**
- * Contribution record
- */
-export interface Contribution {
-  contributor: string;
-  amount: bigint;
-}
-
-/**
- * Contract constants
- */
 export const POIDH_CONSTANTS = {
   FEE_BPS: 250,           // 2.5%
-  MAX_PARTICIPANTS: 150,   // Max contributors for open bounty
+  BPS_DENOM: 10000,
+  MAX_PARTICIPANTS: 150,
   VOTING_PERIOD: 2 * 24 * 60 * 60, // 2 days in seconds
 } as const;
 
-/**
- * Calculate fee amount
- */
 export function calculateFee(amount: bigint): bigint {
-  return (amount * BigInt(POIDH_CONSTANTS.FEE_BPS)) / BigInt(10000);
+  return (amount * BigInt(POIDH_CONSTANTS.FEE_BPS)) / BigInt(POIDH_CONSTANTS.BPS_DENOM);
 }
 
-/**
- * Calculate net amount after fee
- */
 export function calculateNetAmount(amount: bigint): bigint {
   return amount - calculateFee(amount);
 }
-
