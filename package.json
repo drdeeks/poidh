@@ -15,12 +15,15 @@
     "agent:shadow": "ts-node src/agent.ts shadowArt",
     "agent:animal": "ts-node src/agent.ts animalPhoto",
     "agent:list": "ts-node src/agent.ts list",
+    "agent:monitor": "ts-node src/agent.ts monitor",
     "demo:first-valid": "ts-node src/demos/first-valid-demo.ts",
     "demo:ai-judged": "ts-node src/demos/ai-judged-demo.ts",
     "demo:full": "ts-node src/demos/full-demo.ts",
     "demo:simulate": "ts-node src/demos/simulation-demo.ts",
     "wallet:create": "ts-node src/scripts/create-wallet.ts",
     "wallet:balance": "ts-node src/scripts/check-balance.ts",
+    "bounty:cancel": "ts-node src/scripts/cancel-bounty.ts",
+    "bounty:list": "ts-node src/scripts/list-bounties.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -56,7 +59,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOUR_USERNAME/autonomous-bounty-bot.git"
+    "url": "https://github.com/drdeeks/poidh-autonomous.git"
   },
   "keywords": [
     "poidh",
@@ -68,4 +71,3 @@
     "farcaster"
   ]
 }
-
