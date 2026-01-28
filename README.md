@@ -309,12 +309,88 @@ DEMO_MODE=false
 LOG_LEVEL=info
 # OpenAI model for vision
 OPENAI_VISION_MODEL=gpt-4o
-NPM Scripts
-bash
+## 🖥️ Web GUI
 
+The bot includes a web-based GUI for easy configuration and monitoring.
 
+### Starting the GUI
+
+```bash
+# Build the frontend (first time only)
+cd gui && npm install && npm run build && cd ..
+
+# Start the GUI server
+npm run gui
+
+# Open http://localhost:3847 in your browser
+```
+
+### GUI Features
+
+| Tab | Features |
+|-----|----------|
+| **📊 Status** | Agent start/stop toggle, wallet address & balance, network info, active/completed bounty counts, total payouts |
+| **⚙️ Config** | Polling interval slider (5-120s), max gas price, log level dropdown, auto-approve gas toggle, demo mode toggle |
+| **🎯 Bounties** | Template selector (6 templates), custom reward/deadline overrides, launch button, active bounty list with status |
+| **📜 Logs** | Real-time log viewer with level highlighting (info/warn/error) |
+
+### Development Mode (Hot Reload)
+
+For frontend development with hot-reload:
+
+```bash
+# Terminal 1: Start backend server
+npm run gui
+
+# Terminal 2: Start Vite dev server
+cd gui && npm run dev
+
+# Open http://localhost:3001 (proxies API to :3847)
+```
+
+### GUI Architecture
+
+```
+gui/
+├── src/
+│   ├── App.tsx          # Main app with tabbed navigation
+│   ├── index.css        # Dark theme styles
+│   └── main.tsx         # React entry point
+├── vite.config.ts       # Vite config with API proxy
+└── package.json
+
+src/gui/
+├── server.ts            # Express server (port 3847)
+└── api.ts               # REST API routes
+```
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/status` | GET | Agent status (running, bounties, payouts) |
+| `/api/config` | GET/POST | Get or update configuration |
+| `/api/bounties` | GET/POST | List or create bounties |
+| `/api/bounties/:id` | GET | Get bounty details |
+| `/api/bounties/launch/:type` | POST | Launch a production template |
+| `/api/agent/start` | POST | Start the agent |
+| `/api/agent/stop` | POST | Stop the agent |
+| `/api/templates` | GET | List available bounty templates |
+| `/api/wallet` | GET | Get wallet info |
+| `/api/logs` | GET | Get recent log entries |
+
+---
+
+## NPM Scripts
+
+```bash
 # Build
 npm run build              # Compile TypeScript
+
+# GUI
+npm run gui                # Start web GUI server (http://localhost:3847)
+npm run gui:build          # Build frontend for production
+
 # Agent Commands
 npm run agent              # Start agent (shows available bounties)
 npm run agent:list         # List production bounty templates
@@ -324,19 +400,23 @@ npm run agent:meal         # Launch "meal photo" bounty
 npm run agent:tower        # Launch "object tower" bounty (AI-judged)
 npm run agent:shadow       # Launch "shadow art" bounty (AI-judged)
 npm run agent:animal       # Launch "animal photo" bounty (AI-judged)
+
 # Demos
 npm run demo:simulate      # Simulation mode (no real transactions)
 npm run demo:first-valid   # Demo first-valid selection
 npm run demo:ai-judged     # Demo AI-judged selection
 npm run demo:full          # Full demo with both modes
+
 # Wallet
 npm run wallet:create      # Generate new bot wallet
 npm run wallet:balance     # Check wallet balance
+
 # Development
 npm run dev                # Run in development mode
 npm run typecheck          # TypeScript type checking
 npm run lint               # ESLint
 npm run test               # Run tests
+```
 Troubleshooting
 "Insufficient balance" Error
 Your bot wallet needs ETH for gas fees and bounty rewards.
