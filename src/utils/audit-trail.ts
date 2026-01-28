@@ -37,9 +37,44 @@ export type AuditAction =
   | 'AI_EVALUATION_STARTED'
   | 'AI_EVALUATION_COMPLETED'
   | 'WINNER_SELECTED'
+  | 'WINNER_RATIONALE'
   | 'PAYOUT_INITIATED'
   | 'PAYOUT_CONFIRMED'
   | 'ERROR';
+
+/**
+ * Structured winner rationale for audit transparency
+ */
+export interface WinnerRationale {
+  bountyId: string;
+  bountyName: string;
+  selectionMode: 'first_valid' | 'ai_judged';
+  winner: {
+    address: string;
+    claimId: string;
+    submissionId: string;
+  };
+  validationChecks: {
+    name: string;
+    passed: boolean;
+    details: string;
+  }[];
+  aiEvaluation?: {
+    score: number;
+    confidence: number;
+    reasoning: string;
+    model: string;
+  };
+  competitorCount: number;
+  competitorsSummary?: {
+    address: string;
+    status: 'invalid' | 'valid_but_lost';
+    score?: number;
+    reason?: string;
+  }[];
+  decisionSummary: string;
+  timestamp: string;
+}
 
 interface AuditState {
   version: string;
@@ -252,10 +287,58 @@ class AuditTrail {
           lines.push(`       Submitter: ${entry.details.submitter}`);
           lines.push(`       Claim ID: ${entry.details.claimId}`);
           break;
+        case 'SUBMISSION_REJECTED':
+          lines.push(`       Bounty: ${entry.details.bountyId}`);
+          lines.push(`       Submitter: ${entry.details.submitter}`);
+          lines.push(`       Claim ID: ${entry.details.claimId}`);
+          lines.push(`       Validation Score: ${entry.details.validationScore || 'N/A'}/100`);
+          lines.push(`       Reason: ${entry.details.reason}`);
+          if (entry.details.failedChecks && entry.details.failedChecks.length > 0) {
+            lines.push(`       Failed Checks:`);
+            for (const check of entry.details.failedChecks) {
+              lines.push(`         ✗ ${check.name}: ${check.details}`);
+            }
+          }
+          break;
         case 'WINNER_SELECTED':
           lines.push(`       Bounty: ${entry.details.bountyId}`);
           lines.push(`       Winner: ${entry.details.winner}`);
           lines.push(`       Method: ${entry.details.selectionMethod}`);
+          break;
+        case 'WINNER_RATIONALE':
+          lines.push(`       ┌${'─'.repeat(70)}`);
+          lines.push(`       │ WINNER SELECTION RATIONALE`);
+          lines.push(`       ├${'─'.repeat(70)}`);
+          lines.push(`       │ Bounty: ${entry.details.bountyName} (${entry.details.bountyId})`);
+          lines.push(`       │ Selection Mode: ${entry.details.selectionMode === 'first_valid' ? 'First Valid Submission' : 'AI Judged'}`);
+          lines.push(`       │ Winner: ${entry.details.winner?.address}`);
+          lines.push(`       │ Claim ID: ${entry.details.winner?.claimId}`);
+          lines.push(`       │ Competitors: ${entry.details.competitorCount}`);
+          lines.push(`       │`);
+          lines.push(`       │ VALIDATION CHECKS:`);
+          if (entry.details.validationChecks) {
+            for (const check of entry.details.validationChecks) {
+              const icon = check.passed ? '✓' : '✗';
+              lines.push(`       │   ${icon} ${check.name}: ${check.details}`);
+            }
+          }
+          if (entry.details.aiEvaluation) {
+            lines.push(`       │`);
+            lines.push(`       │ AI EVALUATION (${entry.details.aiEvaluation.model}):`);
+            lines.push(`       │   Score: ${entry.details.aiEvaluation.score}/100`);
+            lines.push(`       │   Confidence: ${(entry.details.aiEvaluation.confidence * 100).toFixed(0)}%`);
+            lines.push(`       │   Reasoning: ${entry.details.aiEvaluation.reasoning?.substring(0, 200)}...`);
+          }
+          if (entry.details.competitorsSummary && entry.details.competitorsSummary.length > 0) {
+            lines.push(`       │`);
+            lines.push(`       │ OTHER SUBMISSIONS:`);
+            for (const comp of entry.details.competitorsSummary.slice(0, 5)) {
+              lines.push(`       │   ${comp.address.slice(0, 10)}... - ${comp.status}${comp.score ? ` (score: ${comp.score})` : ''}${comp.reason ? ` - ${comp.reason}` : ''}`);
+            }
+          }
+          lines.push(`       │`);
+          lines.push(`       │ DECISION: ${entry.details.decisionSummary}`);
+          lines.push(`       └${'─'.repeat(70)}`);
           break;
         case 'PAYOUT_CONFIRMED':
           lines.push(`       Bounty: ${entry.details.bountyId}`);
@@ -365,6 +448,14 @@ class AuditTrail {
       isValid: verification.valid,
       summary: this.state.summary,
     };
+  }
+
+  /**
+   * Log comprehensive winner rationale
+   * This creates a detailed, auditable record of why a winner was selected
+   */
+  logWinnerRationale(rationale: WinnerRationale): AuditEntry {
+    return this.log('WINNER_RATIONALE', rationale);
   }
 }
 
