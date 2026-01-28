@@ -14,6 +14,9 @@ logs/
 *.log
 npm-debug.log*
 
+# Runtime data/cache
+data/
+
 # IDE
 .vscode/
 .idea/

@@ -1,0 +1,138 @@
+{
+  "version": "1.0.0",
+  "chainId": 8453,
+  "contractAddress": "0x5555Fa783936C260f77385b4E153B9725feF1719",
+  "agentWallet": "0x81Bf3722303ed8Edb9F81e2C4c8ac0b32641129E",
+  "startedAt": "2026-01-28T04:38:48.601Z",
+  "entries": [
+    {
+      "sequence": 0,
+      "timestamp": "2026-01-27T18:14:38.840Z",
+      "unixTimestamp": 1769537678840,
+      "action": "AGENT_STARTED",
+      "details": {
+        "chainId": 8453,
+        "contractAddress": "0x5555Fa783936C260f77385b4E153B9725feF1719",
+        "agentWallet": "0x81Bf3722303ed8Edb9F81e2C4c8ac0b32641129E",
+        "network": "Base Mainnet"
+      },
+      "previousHash": "GENESIS",
+      "entryHash": "85cfba3915bd9bcdef55ea6c121f6e5bffdda258340380d7e08f9c1d1afb8fd3"
+    },
+    {
+      "sequence": 1,
+      "timestamp": "2026-01-27T18:22:20.930Z",
+      "unixTimestamp": 1769538140930,
+      "action": "AGENT_STARTED",
+      "details": {
+        "chainId": 8453,
+        "contractAddress": "0x5555Fa783936C260f77385b4E153B9725feF1719",
+        "agentWallet": "0x81Bf3722303ed8Edb9F81e2C4c8ac0b32641129E",
+        "network": "Base Mainnet"
+      },
+      "previousHash": "85cfba3915bd9bcdef55ea6c121f6e5bffdda258340380d7e08f9c1d1afb8fd3",
+      "entryHash": "967ecbd1acbff1b1259d36974c7551d29a0a87111459a4bbff36974299dc5b15"
+    },
+    {
+      "sequence": 2,
+      "timestamp": "2026-01-27T18:22:26.642Z",
+      "unixTimestamp": 1769538146642,
+      "action": "BOUNTY_CREATED",
+      "details": {
+        "name": "🌳 Prove You're Outside Right Now",
+        "configId": "proveOutside-1769538140941",
+        "onChainId": "0",
+        "rewardEth": "0.001",
+        "selectionMode": "first_valid",
+        "deadline": "2026-01-28T00:22:20.000Z"
+      },
+      "txHash": "0x1ae55491100aef71394603b641ac0100fbd75c1d67079430bc6764dee0b26dd5",
+      "previousHash": "967ecbd1acbff1b1259d36974c7551d29a0a87111459a4bbff36974299dc5b15",
+      "entryHash": "768bb1a53d39ac7c070733b2615f074b82c08a18e2e0f5a1b2650c498321a185",
+      "blockExplorerUrl": "https://basescan.org/tx/0x1ae55491100aef71394603b641ac0100fbd75c1d67079430bc6764dee0b26dd5"
+    },
+    {
+      "sequence": 3,
+      "timestamp": "2026-01-27T20:34:09.930Z",
+      "unixTimestamp": 1769546049930,
+      "action": "AGENT_STARTED",
+      "details": {
+        "chainId": 8453,
+        "contractAddress": "0x5555Fa783936C260f77385b4E153B9725feF1719",
+        "agentWallet": "0x81Bf3722303ed8Edb9F81e2C4c8ac0b32641129E",
+        "network": "Base Mainnet"
+      },
+      "previousHash": "768bb1a53d39ac7c070733b2615f074b82c08a18e2e0f5a1b2650c498321a185",
+      "entryHash": "ff6ea47505662a1b124c922a44e1c7d919cf1267687f3776bbb7ea9c5365c04b"
+    },
+    {
+      "sequence": 4,
+      "timestamp": "2026-01-28T04:37:05.591Z",
+      "unixTimestamp": 1769575025591,
+      "action": "AGENT_STARTED",
+      "details": {
+        "chainId": 8453,
+        "contractAddress": "0x5555Fa783936C260f77385b4E153B9725feF1719",
+        "agentWallet": "0x81Bf3722303ed8Edb9F81e2C4c8ac0b32641129E",
+        "network": "Base Mainnet"
+      },
+      "previousHash": "ff6ea47505662a1b124c922a44e1c7d919cf1267687f3776bbb7ea9c5365c04b",
+      "entryHash": "4151754f6d258262022ff8127f97abe786b71842a9ee38b523e200958b57d564"
+    },
+    {
+      "sequence": 5,
+      "timestamp": "2026-01-28T04:38:48.602Z",
+      "unixTimestamp": 1769575128602,
+      "action": "AGENT_STARTED",
+      "details": {
+        "chainId": 8453,
+        "contractAddress": "0x5555Fa783936C260f77385b4E153B9725feF1719",
+        "agentWallet": "0x81Bf3722303ed8Edb9F81e2C4c8ac0b32641129E",
+        "network": "Base Mainnet"
+      },
+      "previousHash": "4151754f6d258262022ff8127f97abe786b71842a9ee38b523e200958b57d564",
+      "entryHash": "a70ababdd40a28b5a4ecfd9ced2cb61917249690a0761af0f82958496d3e0884"
+    },
+    {
+      "sequence": 6,
+      "timestamp": "2026-01-28T04:39:08.773Z",
+      "unixTimestamp": 1769575148773,
+      "action": "WINNER_SELECTED",
+      "details": {
+        "bountyId": "existing-17",
+        "onChainId": "17",
+        "winner": "0x49A2B63216cb9A57C2425A6702166A90A18bA293",
+        "submissionId": "61fec199-6e97-4ffd-8d1f-2e74c668c502",
+        "claimId": "79",
+        "selectionMethod": "first_valid",
+        "totalSubmissions": 2,
+        "rationale": "First valid submission"
+      },
+      "previousHash": "a70ababdd40a28b5a4ecfd9ced2cb61917249690a0761af0f82958496d3e0884",
+      "entryHash": "6b489f1c2829b8af86f96d897cea12ec03f6a68914d74f0b68ac0f26a3529147"
+    },
+    {
+      "sequence": 7,
+      "timestamp": "2026-01-28T04:39:09.981Z",
+      "unixTimestamp": 1769575149981,
+      "action": "PAYOUT_CONFIRMED",
+      "details": {
+        "bountyId": "existing-17",
+        "onChainId": "17",
+        "winner": "0x49A2B63216cb9A57C2425A6702166A90A18bA293",
+        "rewardEth": "0.001",
+        "claimId": "79"
+      },
+      "txHash": "0x8cd917439441c2a159016334110b0d1b0ccc812e4b879d265bf2e8e436de4da5",
+      "previousHash": "6b489f1c2829b8af86f96d897cea12ec03f6a68914d74f0b68ac0f26a3529147",
+      "entryHash": "b48aafb988980779a06d22cfa0bd984b8a2100f617821be5da012ac7f12b9c6e",
+      "blockExplorerUrl": "https://basescan.org/tx/0x8cd917439441c2a159016334110b0d1b0ccc812e4b879d265bf2e8e436de4da5"
+    }
+  ],
+  "summary": {
+    "totalBountiesCreated": 1,
+    "totalSubmissionsReceived": 0,
+    "totalPayoutsExecuted": 1,
+    "totalEthPaidOut": "0.001000"
+  }
+}

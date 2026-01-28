@@ -7,7 +7,6 @@
     "build": "tsc",
     "start": "node dist/agent.js",
     "dev": "ts-node src/index.ts",
-
     "agent": "ts-node src/agent.ts",
     "agent:outside": "ts-node src/agent.ts proveOutside",
     "agent:handwritten": "ts-node src/agent.ts handwrittenDate",
@@ -17,23 +16,18 @@
     "agent:animal": "ts-node src/agent.ts animalPhoto",
     "agent:list": "ts-node src/agent.ts list",
     "agent:monitor": "ts-node src/agent.ts monitor",
-
     "demo:first-valid": "ts-node src/demos/first-valid-demo.ts",
     "demo:ai-judged": "ts-node src/demos/ai-judged-demo.ts",
     "demo:full": "ts-node src/demos/full-demo.ts",
     "demo:simulate": "ts-node src/demos/simulation-demo.ts",
-
     "wallet:create": "ts-node src/scripts/create-wallet.ts",
     "wallet:balance": "ts-node src/scripts/check-balance.ts",
-
     "bounty:cancel": "ts-node src/scripts/cancel-bounty.ts",
     "bounty:list": "ts-node src/scripts/list-bounties.ts",
     "bounty:claims": "ts-node src/scripts/check-claims.ts",
-
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
@@ -94,102 +88,3 @@
     "access": "public"
   }
 }
-Output
-The file /monorepo/packages/service.miniapp-generator/gen/app/autonomous-bounty-bot/package.json has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
-     1→{
-     2→  "name": "autonomous-bounty-bot",
-     3→  "version": "2.0.0",
-     4→  "description": "Fully autonomous bounty bot for POIDH V3 - creates, monitors, evaluates, and pays out real-world proof bounties on Base Mainnet",
-     5→  "main": "dist/index.js",
-     6→  "scripts": {
-     7→    "build": "tsc",
-     8→    "start": "node dist/agent.js",
-     9→    "dev": "ts-node src/index.ts",
-    10→
-    11→    "agent": "ts-node src/agent.ts",
-    12→    "agent:outside": "ts-node src/agent.ts proveOutside",
-    13→    "agent:handwritten": "ts-node src/agent.ts handwrittenDate",
-    14→    "agent:meal": "ts-node src/agent.ts mealPhoto",
-    15→    "agent:tower": "ts-node src/agent.ts objectTower",
-    16→    "agent:shadow": "ts-node src/agent.ts shadowArt",
-    17→    "agent:animal": "ts-node src/agent.ts animalPhoto",
-    18→    "agent:list": "ts-node src/agent.ts list",
-    19→    "agent:monitor": "ts-node src/agent.ts monitor",
-    20→
-    21→    "demo:first-valid": "ts-node src/demos/first-valid-demo.ts",
-    22→    "demo:ai-judged": "ts-node src/demos/ai-judged-demo.ts",
-    23→    "demo:full": "ts-node src/demos/full-demo.ts",
-    24→    "demo:simulate": "ts-node src/demos/simulation-demo.ts",
-    25→
-    26→    "wallet:create": "ts-node src/scripts/create-wallet.ts",
-    27→    "wallet:balance": "ts-node src/scripts/check-balance.ts",
-    28→
-    29→    "bounty:cancel": "ts-node src/scripts/cancel-bounty.ts",
-    30→    "bounty:list": "ts-node src/scripts/list-bounties.ts",
-    31→    "bounty:claims": "ts-node src/scripts/check-claims.ts",
-    32→
-    33→    "test": "jest",
-    34→    "test:watch": "jest --watch",
-    35→    "test:coverage": "jest --coverage",
-    36→
-    37→    "lint": "eslint src --ext .ts",
-    38→    "lint:fix": "eslint src --ext .ts --fix",
-    39→    "format": "prettier --write \"src/**/*.ts\"",
-    40→    "typecheck": "tsc --noEmit",
-    41→    "clean": "rm -rf dist coverage logs"
-    42→  },
-    43→  "dependencies": {
-    44→    "ethers": "^6.9.0",
-    45→    "openai": "^4.24.0",
-    46→    "dotenv": "^16.3.1",
-    47→    "axios": "^1.6.2",
-    48→    "sharp": "^0.33.1",
-    49→    "exif-reader": "^2.0.0",
-    50→    "node-cron": "^3.0.3",
-    51→    "winston": "^3.11.0",
-    52→    "uuid": "^9.0.1"
-    53→  },
-    54→  "devDependencies": {
-    55→    "@types/node": "^20.10.5",
-    56→    "@types/node-cron": "^3.0.11",
-    57→    "@types/uuid": "^9.0.7",
-    58→    "typescript": "^5.3.3",
-    59→    "ts-node": "^10.9.2",
-    60→    "jest": "^29.7.0",
-    61→    "@types/jest": "^29.5.11",
-    62→    "eslint": "^8.56.0",
-    63→    "@typescript-eslint/eslint-plugin": "^6.15.0",
-    64→    "@typescript-eslint/parser": "^6.15.0",
-    65→    "prettier": "^3.1.1"
-    66→  },
-    67→  "engines": {
-    68→    "node": ">=18.0.0"
-    69→  },
-    70→  "license": "MIT",
-    71→  "repository": {
-    72→    "type": "git",
-    73→    "url": "https://github.com/drdeek/poidh-autonomous.git"
-    74→  },
-    75→  "author": "DrDeek",
-    76→  "keywords": [
-    77→    "poidh",
-    78→    "bounty",
-    79→    "autonomous",
-    80→    "ai",
-    81→    "blockchain",
-    82→    "base",
-    83→    "farcaster",
-    84→    "gpt4-vision",
-    85→    "web3",
-    86→    "ethereum"
-    87→  ],
-    88→  "files": [
-    89→    "dist",
-    90→    "src",
-    91→    "README.md"
-    92→  ],
-    93→  "publishConfig": {
-    94→    "access": "public"
-    95→  }
-    96→}
-    97→

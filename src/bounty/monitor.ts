@@ -3,6 +3,7 @@ import { bountyManager } from './manager';
 import { Submission, BountyStatus, ProofContent, ProofType } from './types';
 import { log } from '../utils/logger';
 import { config } from '../config';
+import { uriFetcher } from '../utils/uri-fetcher';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -97,11 +98,11 @@ export class SubmissionMonitor {
       log.info('📥 New submission detected', {
         bountyId: configId,
         claimId: claim.id.toString(),
-        submitter: claim.issuer, // V3 uses 'issuer' not 'claimer'
+        submitter: claim.issuer,
       });
 
-      // Process the submission
-      const submission = await this.processSubmission(configId, claim);
+      // Process the submission with on-chain bounty ID for URI fetching
+      const submission = await this.processSubmission(configId, claim, onChainId);
 
       // Add to bounty
       bountyManager.addSubmission(configId, submission);
@@ -115,32 +116,53 @@ export class SubmissionMonitor {
    * Process a raw claim into a structured submission
    *
    * NOTE: POIDH V3 uses `claim.uri` instead of `claim.proofUri`
+   * The imageUri is stored in the ClaimCreated event, not in contract storage.
+   * We use the enterprise URI fetcher to get it from Blockscout or RPC logs.
    */
   private async processSubmission(
     bountyConfigId: string,
-    claim: any
+    claim: any,
+    onChainBountyId: string
   ): Promise<Submission> {
-    // V3 contract: imageUri comes from ClaimCreated event, not stored on claim struct
-    // For now, we expect the caller to provide uri from event or use description as fallback
-    const proofUri = claim.uri || claim.imageUri || claim.proofUri || '';
+    let proofUri = claim.uri || claim.imageUri || claim.proofUri || '';
+
+    // If no URI in claim data, use enterprise URI fetcher to get from event logs
+    if (!proofUri) {
+      const fetchResult = await uriFetcher.fetchClaimUri(onChainBountyId, claim.id.toString());
+      if (fetchResult.success && fetchResult.uri) {
+        proofUri = fetchResult.uri;
+        log.info('✅ URI retrieved via enterprise fetcher', {
+          claimId: claim.id.toString(),
+          source: fetchResult.source,
+          fetchTimeMs: fetchResult.fetchTimeMs,
+        });
+      } else {
+        log.warn('❌ Could not fetch URI from any source', {
+          claimId: claim.id.toString(),
+          error: fetchResult.error,
+        });
+      }
+    }
 
     const submission: Submission = {
       id: uuidv4(),
       bountyId: bountyConfigId,
       claimId: claim.id.toString(),
-      submitter: claim.issuer, // V3 uses 'issuer' not 'claimer'
+      submitter: claim.issuer,
       proofUri: proofUri,
       timestamp: Number(claim.createdAt || claim.timestamp) * 1000,
     };
 
-    // Try to fetch and parse proof content
-    try {
-      submission.proofContent = await this.fetchProofContent(proofUri);
-    } catch (error) {
-      log.warn('Could not fetch proof content', {
-        uri: proofUri,
-        error: (error as Error).message,
-      });
+    // Try to fetch and parse proof content if we have a URI
+    if (proofUri) {
+      try {
+        submission.proofContent = await this.fetchProofContent(proofUri);
+      } catch (error) {
+        log.warn('Could not fetch proof content', {
+          uri: proofUri.slice(0, 80),
+          error: (error as Error).message,
+        });
+      }
     }
 
     return submission;
