@@ -37,7 +37,7 @@ import {
   createFreshBounty,
 } from './bounty/configs/production-bounties';
 import { log } from './utils/logger';
-import { auditTrail } from './utils/audit-trail';
+import { auditTrail, WinnerRationale } from './utils/audit-trail';
 import { config } from './config';
 
 /**
@@ -284,10 +284,23 @@ export class AutonomousBountyAgent {
         await this.payoutWinner(bounty, submission, result.rationale);
         return; // Stop processing this bounty
       } else {
+        // Log rejection with full details for audit transparency
         log.info('❌ Submission did not pass validation', {
           bountyId: bounty.config.id,
           submitter: submission.submitter,
           reason: result.rationale,
+        });
+        
+        // Document rejection in audit trail
+        auditTrail.log('SUBMISSION_REJECTED', {
+          bountyId: bounty.config.id,
+          submitter: submission.submitter,
+          claimId: submission.claimId,
+          reason: result.rationale,
+          validationScore: submission.validationResult?.score,
+          failedChecks: submission.validationResult?.checks
+            ?.filter(c => !c.passed)
+            .map(c => ({ name: c.name, details: c.details })),
         });
       }
     }
@@ -338,7 +351,26 @@ export class AutonomousBountyAgent {
       reward: `${bounty.config.rewardEth} ETH`,
     });
 
-    // Log winner selection to audit trail
+    // Build comprehensive winner rationale for audit trail
+    const winnerRationale = this.buildWinnerRationale(bounty, winner, rationale);
+    
+    // Log detailed winner rationale
+    auditTrail.logWinnerRationale(winnerRationale);
+    
+    // Also log to standard logger with full details
+    log.info('🏆 WINNER RATIONALE', {
+      bountyId: bounty.config.id,
+      bountyName: bounty.config.name,
+      selectionMode: bounty.config.selectionMode,
+      winner: winner.submitter,
+      claimId: winner.claimId,
+      validationScore: winner.validationResult?.score,
+      aiScore: winner.aiEvaluation?.score,
+      totalSubmissions: bounty.submissions.length,
+      decisionSummary: winnerRationale.decisionSummary,
+    });
+
+    // Log winner selection to audit trail (simplified)
     auditTrail.log('WINNER_SELECTED', {
       bountyId: bounty.config.id,
       onChainId: bounty.onChainId,
@@ -347,7 +379,7 @@ export class AutonomousBountyAgent {
       claimId: winner.claimId,
       selectionMethod: bounty.config.selectionMode,
       totalSubmissions: bounty.submissions.length,
-      rationale: rationale.substring(0, 500), // Truncate for log
+      rationale: rationale.substring(0, 500),
     });
 
     // Complete the bounty on-chain (triggers payout)
@@ -375,6 +407,92 @@ export class AutonomousBountyAgent {
 
     // Print winner announcement
     this.announceWinner(bounty, winner, rationale, txHash);
+  }
+
+  /**
+   * Build comprehensive winner rationale for audit documentation
+   */
+  private buildWinnerRationale(
+    bounty: ActiveBounty,
+    winner: Submission,
+    rationaleText: string
+  ): WinnerRationale {
+    const isFirstValid = bounty.config.selectionMode === SelectionMode.FIRST_VALID;
+    
+    // Get validation checks from the winner
+    const validationChecks = winner.validationResult?.checks?.map(check => ({
+      name: check.name,
+      passed: check.passed,
+      details: check.details,
+    })) || [];
+
+    // Build AI evaluation info if present
+    const aiEvaluation = winner.aiEvaluation ? {
+      score: winner.aiEvaluation.score,
+      confidence: winner.aiEvaluation.confidence,
+      reasoning: winner.aiEvaluation.reasoning,
+      model: winner.aiEvaluation.model,
+    } : undefined;
+
+    // Build competitors summary (other submissions)
+    const competitors = bounty.submissions
+      .filter(s => s.id !== winner.id)
+      .map(s => {
+        const isValid = s.validationResult?.isValid || false;
+        const aiScore = s.aiEvaluation?.score;
+        
+        let status: 'invalid' | 'valid_but_lost' = 'invalid';
+        let reason: string | undefined;
+        
+        if (isValid) {
+          status = 'valid_but_lost';
+          if (isFirstValid) {
+            reason = 'Submitted after winning submission';
+          } else if (aiScore !== undefined && winner.aiEvaluation?.score !== undefined) {
+            reason = `AI score ${aiScore} vs winner's ${winner.aiEvaluation.score}`;
+          }
+        } else {
+          reason = s.validationResult?.summary || 'Failed validation';
+        }
+        
+        return {
+          address: s.submitter,
+          status,
+          score: aiScore,
+          reason,
+        };
+      });
+
+    // Build decision summary
+    let decisionSummary: string;
+    if (isFirstValid) {
+      const passedChecks = validationChecks.filter(c => c.passed).length;
+      const totalChecks = validationChecks.length;
+      decisionSummary = `FIRST VALID SUBMISSION: ${winner.submitter.slice(0, 10)}... passed ${passedChecks}/${totalChecks} validation checks with score ${winner.validationResult?.score || 'N/A'}/100. ` +
+        `This was the first submission to meet all requirements. ` +
+        `${competitors.length} other submission(s) were either invalid or submitted later.`;
+    } else {
+      decisionSummary = `AI JUDGED WINNER: ${winner.submitter.slice(0, 10)}... scored ${winner.aiEvaluation?.score || 'N/A'}/100 (confidence: ${((winner.aiEvaluation?.confidence || 0) * 100).toFixed(0)}%). ` +
+        `Selected from ${bounty.submissions.length} submission(s) based on GPT-4 Vision analysis. ` +
+        `AI reasoning: "${winner.aiEvaluation?.reasoning?.substring(0, 150) || rationaleText.substring(0, 150)}..."`;
+    }
+
+    return {
+      bountyId: bounty.config.id,
+      bountyName: bounty.config.name,
+      selectionMode: isFirstValid ? 'first_valid' : 'ai_judged',
+      winner: {
+        address: winner.submitter,
+        claimId: winner.claimId,
+        submissionId: winner.id,
+      },
+      validationChecks,
+      aiEvaluation,
+      competitorCount: bounty.submissions.length - 1,
+      competitorsSummary: competitors.length > 0 ? competitors : undefined,
+      decisionSummary,
+      timestamp: new Date().toISOString(),
+    };
   }
 
   /**
