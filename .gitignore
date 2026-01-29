@@ -1,39 +1,286 @@
-# Dependencies
-node_modules/
+# ═══════════════════════════════════════════════════════════════════════════════
+# .gitignore - Prevent sensitive files from being committed to git
+# ═══════════════════════════════════════════════════════════════════════════════
+# This file is critical for security. NEVER ignore environment/secret files!
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# Build output
-dist/
+# ═══════════════════════════════════════════════════════════════════════════════
+# ENVIRONMENT & SECRETS (CRITICAL - NEVER COMMIT)
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# Environment files (NEVER commit!)
+# Main environment file
 .env
+
+# Environment files for different environments
 .env.local
 .env.*.local
+.env.development
+.env.production
+.env.test
+.env.staging
 
-# Logs
+# Environment template (examples only) - except .env.example which we do commit
+!.env.example
+
+# Credential files (wildcard match)
+.credentials
+.secrets
+*.credentials
+*.secret
+*.secrets
+*secret*.json
+*credentials*.json
+*keys*.json
+*.key
+*.pem
+*.p12
+*.pfx
+*wallet*.json
+
+# API keys and tokens (if accidentally saved)
+*api_key*
+*apikey*
+*access_token*
+*refresh_token*
+*private_key*
+
+# Cloud provider credentials
+~/.aws/
+~/.gcloud/
+.gcp/
+cloud.json
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DEPENDENCIES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BUILD & COMPILED OUTPUT
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# TypeScript compiled output
+dist/
+build/
+*.tsbuildinfo
+
+# Other build directories
+.next/
+out/
+coverage/
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LOGGING & RUNTIME DATA
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Log files
 logs/
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Runtime data/cache
+# Audit trail logs (production data)
+audit*.json
+audit*.log
+
+# Runtime data and temporary files
 data/
+tmp/
+.tmp/
+temp/
+.cache/
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
+# OS and runtime caches
 .DS_Store
+.AppleDouble
+.LSOverride
 Thumbs.db
+ehthumbs.db
+.env.local.swp
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DEVELOPMENT TOOLS & IDE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# VS Code
+.vscode/
+*.code-workspace
+.history/
+.settings/
+
+# JetBrains IDEs
+.idea/
+.idea_modules/
+*.iml
+*.iws
+*.ipr
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*~
+.*.swp
+.*.swo
+*.swn
+.vim/
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# VS 2015+
+.vs/
+
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+*.playground
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# OS GENERATED FILES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Windows
+Thumbs.db
+thumbs.db
+*.lnk
+.cmd
+.bat
+
+# macOS
+.AppleDouble
+.LSOverride
+*.app
+
+# Linux
+.directory
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TEST & COVERAGE
+# ═══════════════════════════════════════════════════════════════════════════════
 
 # Test coverage
 coverage/
+.nyc_output/
+*.lcov
 
-# TypeScript cache
-*.tsbuildinfo
+# Jest
+__snapshots__/
 
-# Misc
-.cache/
-tmp/
+# ═══════════════════════════════════════════════════════════════════════════════
+# DEPENDENCY CACHES
+# ═══════════════════════════════════════════════════════════════════════════════
 
+# npm
+.npm
+.eslintcache
+
+# Yarn
+.yarn-integrity
+
+# PNPM
+.pnpm-store/
+
+# Bundler caches
+.bundle/
+
+# pip (Python)
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DATABASE & PERSISTENCE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+*.pgsql
+
+# Local development database
+.db/
+*.dbf
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DOCUMENTATION GENERATED
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Typedoc generated docs
+docs/generated/
+
+# API docs
+apidocs/
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MISC GENERATED & TEMPORARY FILES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Package manager backups
+*.bak
+*.backup
+*~
+
+# Temporary files
+.DS_Store
+.env.local.*.bak
+
+# OS caches
+.cache
+.venv
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BLOCKCHAIN SPECIFIC
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Hardhat/ethers artifacts
+artifacts/
+cache/
+typechain/
+
+# Ganache snapshots
+ganache-db/
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# WALLET & KEY SPECIFIC
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Hardware wallet config
+.ledger/
+
+# Key backups (if user accidentally saves keys)
+*-backup.key
+*-private.key
+private-key*
+wallet.json
+*.keystore
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DO NOT MODIFY BELOW - Critical exclusions for this project
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Always commit these (opposite of gitignore)
+!.env.example
+!.gitignore
+!README.md
+!package.json
+!package-lock.json
