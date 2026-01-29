@@ -15,6 +15,7 @@ import { AutonomousBountyAgent } from '../agent';
 import { log } from '../utils/logger';
 import { SelectionMode, ProofType } from '../bounty/types';
 import { config } from '../config';
+import { auditTrail } from '../utils/audit-trail';
 
 const bounties = [
   {
@@ -203,6 +204,124 @@ let bountyIndex = 0;
 let completedCount = 0;
 let totalSpent = '0';
 
+/**
+ * Extract and display winner rationale from audit trail
+ */
+function displayWinnerRationale(bountyId: string): void {
+  const auditState = auditTrail.getState();
+  
+  // Find WINNER_RATIONALE entries for this bounty
+  const rationaleEntries = auditState.entries.filter(
+    entry => entry.action === 'WINNER_RATIONALE' && 
+             entry.details.bountyId === bountyId
+  );
+
+  if (rationaleEntries.length === 0) {
+    return; // No rationale found
+  }
+
+  const entry = rationaleEntries[rationaleEntries.length - 1]; // Get most recent
+  const rationale = entry.details;
+
+  log.info(`\n╔════════════════════════════════════════════════════════════════╗`);
+  log.info(`║ 🏆 WINNER SELECTION RATIONALE                                 ║`);
+  log.info(`╠════════════════════════════════════════════════════════════════╣`);
+  
+  // Winner info
+  log.info(`║ Winner Address: ${rationale.winner?.address || 'N/A'}`);
+  log.info(`║ Claim ID: ${rationale.winner?.claimId || 'N/A'}`);
+  log.info(`║ Selection Mode: ${rationale.selectionMode === 'first_valid' ? 'FIRST VALID' : 'AI JUDGED'}`);
+  
+  // Validation checks
+  if (rationale.validationChecks && rationale.validationChecks.length > 0) {
+    log.info(`║                                                                ║`);
+    log.info(`║ ✅ VALIDATION CHECKS PASSED:                                  ║`);
+    for (const check of rationale.validationChecks) {
+      const status = check.passed ? '✓' : '✗';
+      log.info(`║   ${status} ${check.name}`);
+      if (check.details) {
+        log.info(`║     → ${check.details}`);
+      }
+    }
+  }
+
+  // AI Evaluation (if available)
+  if (rationale.aiEvaluation) {
+    log.info(`║                                                                ║`);
+    log.info(`║ 🤖 AI EVALUATION (${rationale.aiEvaluation.model}):               ║`);
+    log.info(`║   Score: ${rationale.aiEvaluation.score}/100`);
+    log.info(`║   Confidence: ${(rationale.aiEvaluation.confidence * 100).toFixed(0)}%`);
+    if (rationale.aiEvaluation.reasoning) {
+      const reasoning = rationale.aiEvaluation.reasoning.substring(0, 55);
+      log.info(`║   Reasoning: ${reasoning}...`);
+    }
+  }
+
+  // Competitors summary
+  if (rationale.competitorsSummary && rationale.competitorsSummary.length > 0) {
+    log.info(`║                                                                ║`);
+    log.info(`║ 👥 WHY OTHERS DIDN'T WIN (${rationale.competitorsSummary.length} others):    ║`);
+    for (const comp of rationale.competitorsSummary.slice(0, 3)) {
+      const addr = comp.address?.substring(0, 10) || 'unknown';
+      const reason = comp.reason ? ` - ${comp.reason}` : '';
+      log.info(`║   ✗ ${addr}... (${comp.status})${reason}`);
+    }
+    if (rationale.competitorsSummary.length > 3) {
+      log.info(`║   ... and ${rationale.competitorsSummary.length - 3} more submissions`);
+    }
+  }
+
+  // Decision summary
+  if (rationale.decisionSummary) {
+    log.info(`║                                                                ║`);
+    log.info(`║ 📋 DECISION SUMMARY:                                          ║`);
+    const summary = rationale.decisionSummary.substring(0, 58);
+    log.info(`║ ${summary}`);
+    if (rationale.decisionSummary.length > 58) {
+      const summary2 = rationale.decisionSummary.substring(58, 116);
+      log.info(`║ ${summary2}`);
+    }
+  }
+
+  log.info(`║                                                                ║`);
+  log.info(`║ ✅ Winner verified as REAL and VALID                           ║`);
+  log.info(`╚════════════════════════════════════════════════════════════════╝\n`);
+}
+
+/**
+ * Display rejection details from audit trail
+ */
+function displayRejectionDetails(bountyId: string): void {
+  const auditState = auditTrail.getState();
+  
+  const rejectionEntries = auditState.entries.filter(
+    entry => entry.action === 'SUBMISSION_REJECTED' && 
+             entry.details.bountyId === bountyId
+  );
+
+  if (rejectionEntries.length === 0) {
+    return;
+  }
+
+  if (rejectionEntries.length > 0) {
+    log.info(`\n⚠️  REJECTED SUBMISSIONS SUMMARY:`);
+    for (const entry of rejectionEntries.slice(0, 3)) {
+      const submitter = entry.details.submitter?.substring(0, 10) || 'unknown';
+      const reason = entry.details.reason || 'validation failed';
+      log.info(`   ✗ ${submitter}... - ${reason}`);
+      
+      if (entry.details.failedChecks && entry.details.failedChecks.length > 0) {
+        for (const check of entry.details.failedChecks.slice(0, 2)) {
+          log.info(`     • ${check.name}: ${check.details}`);
+        }
+      }
+    }
+    if (rejectionEntries.length > 3) {
+      log.info(`   ... and ${rejectionEntries.length - 3} more rejections`);
+    }
+  }
+}
+
 async function runContinuousLoop() {
   const agent = new AutonomousBountyAgent();
 
@@ -258,13 +377,20 @@ async function runContinuousLoop() {
           const activeBounties = status.activeBounties || 0;
 
           if (activeBounties === 0) {
-            log.info(`\n✨ Bounty Complete!`);
+            log.info(`\n✨ Bounty Complete!\n`);
+            
+            // Display detailed winner rationale and reasoning
+            displayWinnerRationale(bounty.config.id);
+            
+            // Display rejected submissions for context
+            displayRejectionDetails(bounty.config.id);
+            
             completedCount++;
             totalSpent = (
               parseFloat(totalSpent) + parseFloat(bountyConfig.rewardEth)
             ).toString();
 
-            log.info(`📊 Progress:`);
+            log.info(`\n📊 Progress:`);
             log.info(`   Bounties Completed: ${completedCount}`);
             log.info(`   Total Spent: ${totalSpent} ETH`);
             log.info(`   Next Bounty Starting in 5 seconds...\n`);
