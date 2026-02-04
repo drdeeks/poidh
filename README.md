@@ -1,520 +1,170 @@
 # Autonomous Bounty Bot for POIDH
 
-A fully autonomous bounty agent that creates, monitors, evaluates, and pays out real-world proof bounties on the [poidh](https://poidh.xyz) platform with **zero human intervention**.
+A fully autonomous agent that creates, monitors, evaluates, and pays out real-world proof bounties on [POIDH](https://poidh.xyz) with **zero human intervention**.
 
-## Task Requirements Checklist
+## Features
 
-| Requirement | Status | Implementation |
-|-------------|--------|----------------|
-| ✅ 100% Open Source | **Complete** | MIT License, public repo |
-| ✅ Bot Controls Own Wallet | **Complete** | `src/wallet/index.ts` - Bot generates and manages its own private key |
-| ✅ Creates POIDH Bounties | **Complete** | `src/contracts/poidh.ts` - Creates solo bounties on POIDH V3 |
-| ✅ Real-World Action Bounties | **Complete** | Photos, videos, physical tasks with EXIF validation |
-| ✅ Monitors Submissions | **Complete** | `src/bounty/monitor.ts` - Polls blockchain for claims |
-| ✅ Autonomous Winner Selection | **Complete** | First-valid (deterministic) or GPT-4 Vision (AI-judged) |
-| ✅ Clear Selection Logic | **Complete** | Transparent rationale logged for every decision |
-| ✅ Autonomous Payout | **Complete** | `bountyManager.completeBounty()` triggers on-chain payment |
-| ✅ Working Demo | **Complete** | `npm run demo:simulate` and production bounty configs |
+| Feature | Description |
+|---------|-------------|
+| **Autonomous Wallet** | Bot controls its own wallet and funds |
+| **On-Chain Bounties** | Creates bounties on POIDH V3 (Base Mainnet) |
+| **Real-World Proof** | Validates photos with EXIF, freshness, screenshot detection |
+| **Two Selection Modes** | First-valid (instant) or AI-judged (GPT-4 Vision) |
+| **Transparent Decisions** | Hash-chained audit trail with full rationale |
+| **Automatic Payout** | Winners receive ETH immediately |
 
 ## How It Works
 
 ```
-╔══════════════════════════════════════════════════════════════════════════════╗
-║ AUTONOMOUS BOUNTY BOT FLOW                                                   ║
-╠══════════════════════════════════════════════════════════════════════════════╣
-║                                                                              ║
-║ 1. CREATE 2. MONITOR 3. EVALUATE 4. PAYOUT                                   ║
-║ ──────── ───────── ────────── ──────────                                     ║
-║ Bot creates Bot polls Bot validates Bot accepts                              ║
-║ bounty on-chain for new claims each submission winning claim                 ║
-║ with ETH reward from blockchain autonomously → ETH sent!                     ║
-║                                                                              ║
-║ NO HUMAN INTERVENTION REQUIRED                                               ║
-║                                                                              ║
-╚══════════════════════════════════════════════════════════════════════════════╝
+CREATE → MONITOR → EVALUATE → PAYOUT
+Bot creates   Bot polls   Bot validates   Bot accepts winning
+bounty with   blockchain   submissions     claim, ETH sent
+ETH reward    for claims   autonomously    to winner
 ```
 
-### Winner Selection Modes
-
-**FIRST_VALID** - First submission that passes all validation checks wins immediately:
-- Deterministic rules (EXIF, freshness, location, keywords)
-- No waiting for deadline
-- Instant payout on valid submission
-
-**AI_JUDGED** - GPT-4 Vision evaluates all submissions after deadline:
-- Collects submissions until deadline
-- AI scores each based on creativity/quality criteria
-- Best submission wins with detailed rationale
+**→ See [docs/BOT_LOGIC.md](docs/BOT_LOGIC.md) for scoring system and selection logic**
 
 ## Quick Start
 
-### 1. Clone and Install
-
 ```bash
+# 1. Clone and install
 git clone https://github.com/drdeeks/poidh.git
-cd Poidh-autonomous
-npm install
-cp .env.example .env
-```
+cd Poidh-autonomous && npm install
 
-### 2. Create Bot Wallet
-
-```bash
+# 2. Create bot wallet
 npm run wallet:create
-```
 
-This generates a new wallet. Add the private key to `.env`:
+# 3. Configure .env
+cp .env.example .env
+# Add: BOT_PRIVATE_KEY, RPC_URL, OPENAI_API_KEY
 
-```bash
-BOT_PRIVATE_KEY=0x...your_generated_private_key...
-```
-
-### 3. Fund the Wallet
-
-Send Base ETH to your bot's wallet address for gas fees and bounty rewards.
-
-Check balance:
-
-```bash
-npm run wallet:balance
-```
-
-### 4. Configure Environment
-
-```bash
-# Required
-BOT_PRIVATE_KEY=0x...
-RPC_URL=https://mainnet.base.org
-OPENAI_API_KEY=sk-...
-
-# POIDH V3 Contract (Base Mainnet)
-POIDH_CONTRACT_ADDRESS=0x5555Fa783936C260f77385b4E153B9725feF1719
-CHAIN_ID=8453
-```
-
-### 5. Run the Bot
-
-```bash
-# List available production bounties
-npm run agent:list
-
-# Launch a specific bounty type
-npm run agent:outside      # Prove you're outdoors (first-valid)
-npm run agent:tower        # Object stacking contest (AI-judged)
-
-# Or run with custom bounty type
+# 4. Fund wallet with Base ETH, then run
 npm run agent proveOutside
 ```
 
-## Production Bounty Templates
+## Production Bounties
 
-The bot includes 6 ready-to-use bounty configurations requiring real-world proof:
+### First-Valid (instant winner)
+| Command | Description |
+|---------|-------------|
+| `npm run agent:outside` | Prove you're outdoors |
+| `npm run agent:handwritten` | Handwritten note with date |
+| `npm run agent:meal` | Photo of current meal |
 
-### First-Valid Bounties (instant winner)
+### AI-Judged (GPT-4 picks best)
+| Command | Description |
+|---------|-------------|
+| `npm run agent:tower` | Object stacking contest |
+| `npm run agent:shadow` | Creative shadow art |
+| `npm run agent:animal` | Best pet/wildlife photo |
 
-| Bounty | Command | Reward | Description |
-|--------|---------|--------|-------------|
-| Prove Outside | `npm run agent:outside` | 0.0001 ETH | Photo proving you're outdoors right now |
-| Handwritten Date | `npm run agent:handwritten` | 0.0001 ETH | Handwritten note with today's date + "POIDH" |
-| Meal Photo | `npm run agent:meal` | 0.0001 ETH | Photo of your current meal |
+## Winner Selection
 
-### AI-Judged Bounties (GPT-4 Vision picks winner)
+**FIRST_VALID** - First submission passing all checks wins:
+1. Proof content exists → Media URL valid → EXIF data present
+2. Photo freshness verified → Not a screenshot → Location (if required)
+3. **Score ≥ 50/100** → Winner, payout triggered
 
-| Bounty | Command | Reward | Description |
-|--------|---------|--------|-------------|
-| Object Tower | `npm run agent:tower` | 0.0001 ETH | Most creative stack of household objects |
-| Shadow Art | `npm run agent:shadow` | 0.0001 ETH | Most creative shadow photography |
-| Animal Photo | `npm run agent:animal` | 0.0001 ETH | Best photo of a pet or wildlife |
+**AI_JUDGED** - GPT-4 Vision picks best after deadline:
+1. All valid submissions sent to GPT-4 Vision
+2. Scored on creativity, quality, adherence to prompt
+3. Highest score wins with detailed rationale
 
-**Note:** Rewards are set to ~0.25 USD equivalent for demo purposes. Override with: `npm run agent proveOutside -- --reward 0.01`
+**→ Full scoring breakdown: [docs/BOT_LOGIC.md](docs/BOT_LOGIC.md)**
 
-## Real-World Proof Requirements
-
-All bounties enforce authenticity:
-
-✓ **EXIF Data Required** - Photo must have valid camera metadata  
-✓ **Freshness Verified** - Photo must be taken within time limit (e.g., 30 minutes)  
-✓ **Screenshot Detection** - Rejects screenshots of other photos  
-✓ **AI-Generated Detection** - Rejects AI-generated images  
-
-## Winner Selection Logic
-
-### First-Valid Mode
-
-Validation checks run in order:
+## Project Structure
 
 ```
-1. Proof Content     - Does submission have retrievable content?
-2. Media URL         - Is there a valid image/video URL?
-3. EXIF Data         - Does photo have camera metadata?
-4. Photo Freshness   - Was photo taken within time limit?
-5. Screenshot Check  - Is this NOT a screenshot?
-6. Location (if req) - Is photo within required radius?
-7. Keywords (if req) - Does description contain required words?
+src/
+├── agent.ts              # Main orchestration
+├── evaluation/
+│   ├── validator.ts      # Scoring & validation
+│   └── ai-judge.ts       # GPT-4 Vision
+├── bounty/
+│   ├── manager.ts        # Bounty lifecycle
+│   └── monitor.ts        # Blockchain polling
+├── contracts/poidh.ts    # POIDH V3 contract
+└── utils/audit-trail.ts  # Cryptographic logging
 
-→ FIRST submission passing ALL checks wins immediately
-→ Payout triggered automatically - no human review
+docs/                     # Documentation
+├── BOT_LOGIC.md          # Scoring & selection logic
+├── CLOUD_QUICK_START.md  # Quick deployment
+├── CLOUD_DEPLOYMENT.md   # Full deployment guides
+└── SECURITY.md           # Security best practices
+
+logs/                     # Runtime output (gitignored)
+├── audit-trail.json      # Machine-readable audit
+└── audit-trail.txt       # Human-readable audit
+
+evidence/                 # Proof of completed bounties
 ```
 
-### AI-Judged Mode
-
-```
-1. Filter valid submissions (pass basic checks)
-2. Send all valid images to GPT-4 Vision
-3. AI scores each 0-100 based on:
-   - Creativity
-   - Technical quality
-   - Adherence to prompt
-4. Highest score wins
-5. Detailed rationale logged
-6. Payout triggered automatically
-```
-
-## Transparent Decision Making
-
-Every winner selection includes detailed rationale with enhanced audit trail:
-
-```
-╔══════════════════════════════════════════════════════════════════════════════╗
-║                           🏆 WINNER ANNOUNCED 🏆                              ║
-╠══════════════════════════════════════════════════════════════════════════════╣
-║                                                                              ║
-║  Bounty: Prove You're Outside Right Now                                      ║
-║  Winner: 0x1234...abcd                                                       ║
-║  Reward: 0.0001 ETH                                                          ║
-║  Selection: First Valid Submission                                           ║
-║  Payout TX: 0xabcd...1234                                                    ║
-║                                                                              ║
-╠══════════════════════════════════════════════════════════════════════════════╣
-║  RATIONALE:                                                                  ║
-║  ✅ VALID: Passed 5/5 checks (score: 100/100)                               ║
-║  - Proof Content: Content type: PHOTO                                        ║
-║  - Media URL: Valid IPFS image found                                         ║
-║  - EXIF Data: Verified timestamp 2024-01-15T10:30:00Z (iPhone 15)           ║
-║  - Photo Freshness: Taken 12 minutes ago - within 30 minute limit           ║
-║  - Screenshot Check: Photo does not appear to be a screenshot               ║
-║                                                                              ║
-╠══════════════════════════════════════════════════════════════════════════════╣
-║  AUDIT TRAIL DETAILS:                                                        ║
-║  ├─ SUBMISSION_REJECTED: 2 submissions failed validation                     ║
-║  ├─ WINNER_RATIONALE: Full decision documentation recorded                   ║
-║  └─ PAYOUT_CONFIRMED: 0xabcd...1234 on-chain confirmation                   ║
-║                                                                              ║
-║  ✅ Payment executed autonomously - no human intervention                    ║
-╚══════════════════════════════════════════════════════════════════════════════╝
-```
-
-### Audit Trail Features
-
-The enhanced audit tracking provides complete transparency:
-
-- **SUBMISSION_REJECTED**: Documents rejected submissions with validation scores and failed checks
-- **WINNER_RATIONALE**: Comprehensive decision record including:
-  - Validation checks (✓ passed, ✗ failed)
-  - AI evaluation scores and confidence
-  - Competitor analysis and why they didn't win
-  - Full decision summary for auditability
-- **PAYOUT_CONFIRMED**: On-chain confirmation of winner payment
-
-## POIDH V3 Contract Integration
-
-This bot integrates with POIDH V3 on Base Mainnet:
-
-- **Contract:** `0x5555Fa783936C260f77385b4E153B9725feF1719`
-- **Chain:** Base Mainnet (Chain ID: 8453)
-- **Fee:** 2.5% (250 BPS)
-- **Max Participants:** 150 per bounty
-- **Voting Period:** 2 days (for open bounties)
-- **Payment Pattern:** Pull-based (withdraw() function)
-
-### Key Contract Functions Used
-
-```typescript
-// Create bounty
-createSoloBounty(name, description) + { value: rewardWei }
-
-// Accept winning claim (triggers payout)
-acceptClaim(bountyId, claimId)
-
-// Monitor claims
-getBountyClaims(bountyId) → Claim[]
-
-// Withdraw winnings (for winners)
-withdraw()
-```
-
-## Running a Demo
-
-### Simulation Mode (No Real Transactions)
+## Configuration
 
 ```bash
-npm run demo:simulate
-```
-
-This runs through the entire flow with mock data - great for testing.
-
-### Live Demo (Real Transactions)
-
-```bash
-# Make sure wallet is funded first
-npm run wallet:balance
-
-# Run a real bounty
-npm run agent:outside
-```
-
-The bot will:
-
-1. Create a bounty on POIDH V3
-2. Start monitoring for submissions
-3. Evaluate each submission as it arrives
-4. Pay out the winner automatically
-
-## Architecture
-
-```
-autonomous-bounty-bot/
-├── src/
-│   ├── agent.ts                    # Main orchestration + CLI entry point
-│   │
-│   ├── wallet/
-│   │   └── index.ts                # Bot wallet management (keys, signing)
-│   │
-│   ├── contracts/
-│   │   ├── abis.ts                 # POIDH V3 ABI definitions
-│   │   ├── poidh.ts                # Contract interaction layer
-│   │   └── mock-poidh.ts           # Mock for testing
-│   │
-│   ├── bounty/
-│   │   ├── types.ts                # Type definitions + ValidationCriteria
-│   │   ├── templates.ts            # Bounty template functions
-│   │   ├── manager.ts              # Bounty lifecycle management
-│   │   ├── monitor.ts              # Blockchain polling for claims
-│   │   └── configs/
-│   │       └── production-bounties.ts  # 6 ready-to-use bounty configs
-│   │
-│   ├── evaluation/
-│   │   ├── index.ts                # Evaluation engine coordinator
-│   │   ├── validator.ts            # Deterministic validation (EXIF, freshness)
-│   │   └── ai-judge.ts             # GPT-4 Vision integration
-│   │
-│   ├── config/
-│   │   └── index.ts                # Environment configuration
-│   │
-│   └── utils/
-│       ├── logger.ts               # Structured logging
-│       ├── audit-trail.ts          # Enhanced audit tracking
-│       └── errors.ts               # Custom error types
-│
-├── .env.example                    # Environment template
-├── package.json                    # Scripts and dependencies
-└── README.md                       # This file
-```
-
-## API Usage
-
-### Programmatic Control
-
-```typescript
-import { agent } from './agent';
-import { PRODUCTION_BOUNTIES } from './bounty/configs/production-bounties';
-
-// Initialize
-await agent.initialize();
-
-// Launch a production bounty
-const bounty = await agent.launchProductionBounty('proveOutside');
-
-// Or create custom bounty
-const customBounty = await agent.createBounty({
-  id: 'my-bounty',
-  name: 'Custom Challenge',
-  description: 'Do something cool',
-  requirements: 'Photo proof required',
-  proofType: ProofType.PHOTO,
-  selectionMode: SelectionMode.FIRST_VALID,
-  rewardEth: '0.01',
-  deadline: Math.floor(Date.now() / 1000) + 3600, // 1 hour
-  validation: {
-    requireExif: true,
-    maxAgeMinutes: 60,
-    rejectScreenshots: true,
-  },
-  tags: ['custom'],
-});
-
-// Start autonomous operation
-agent.start();
-
-// Check status
-const status = agent.getStatus();
-console.log(status);
-// { isRunning: true, activeBounties: 1, completedBounties: 0, totalPayouts: 0, network: 'Base Mainnet' }
-```
-
-### List Available Bounties
-
-```typescript
-agent.listAvailableBounties();
-// Prints formatted table of all production bounty templates
-```
-
-## Environment Variables
-
-### Required Configuration
-
-```bash
-# Bot's private key (generate with: npm run wallet:create)
-BOT_PRIVATE_KEY=0x...
-
-# RPC endpoint for Base Mainnet
+# Required
+BOT_PRIVATE_KEY=0x...     # Bot wallet private key
 RPC_URL=https://mainnet.base.org
-
-# OpenAI API key for AI-judged bounties
 OPENAI_API_KEY=sk-...
-```
 
-### POIDH V3 Contract (Base Mainnet defaults)
-
-```bash
+# POIDH V3 Contract (defaults)
 POIDH_CONTRACT_ADDRESS=0x5555Fa783936C260f77385b4E153B9725feF1719
 CHAIN_ID=8453
 ```
 
-### Optional Configuration
+## Commands
 
 ```bash
-# Polling interval for checking new submissions (seconds, default: 30)
-POLLING_INTERVAL=30
+# Agent
+npm run agent:list        # List bounty templates
+npm run agent:outside     # Launch outdoor proof bounty
+npm run agent monitor 17  # Monitor existing bounty #17
 
-# Maximum gas price willing to pay (gwei, default: 50)
-MAX_GAS_PRICE_GWEI=50
+# Wallet
+npm run wallet:create     # Generate new wallet
+npm run wallet:balance    # Check balance
 
-# Auto-approve gas spending (default: true)
-AUTO_APPROVE_GAS=true
+# Demo
+npm run demo:simulate     # Simulation mode (no real tx)
 
-# Demo mode - no real transactions (default: false)
-DEMO_MODE=false
-
-# Log level: debug, info, warn, error (default: info)
-LOG_LEVEL=info
-
-# OpenAI model for vision - gpt-4o or gpt-4-turbo (default: gpt-4o)
-OPENAI_VISION_MODEL=gpt-4o
+# Build
+npm run build             # Compile TypeScript
+npm run test              # Run tests
 ```
 
-## NPM Scripts
+## Documentation
 
-### Build & Development
+| Doc | Purpose |
+|-----|---------|
+| [docs/BOT_LOGIC.md](docs/BOT_LOGIC.md) | Scoring system, winner selection, audit trail |
+| [docs/CLOUD_QUICK_START.md](docs/CLOUD_QUICK_START.md) | Deploy to cloud in 5 minutes |
+| [docs/CLOUD_DEPLOYMENT.md](docs/CLOUD_DEPLOYMENT.md) | AWS, DigitalOcean, Heroku, Railway guides |
+| [docs/SECURITY.md](docs/SECURITY.md) | Key management, security best practices |
+| [BOUNTY_SUBMISSION.md](BOUNTY_SUBMISSION.md) | Bounty challenge submission proof |
 
-```bash
-npm run build              # Compile TypeScript
-npm run dev                # Run in development mode with ts-node
-npm run typecheck          # TypeScript type checking
-npm run lint               # ESLint code quality check
-npm run lint:fix           # Auto-fix linting issues
-npm run format             # Format code with Prettier
-npm run clean              # Remove build artifacts
+## Audit Trail
+
+Every decision is logged with cryptographic proof:
+
+```
+[0042] 2026-01-28T10:30:15Z
+       Action: WINNER_SELECTED
+       Bounty: proveOutside-2026-01-28
+       Winner: 0x49A2B6...
+       Score: 85/100
+       Checks: ✓ Proof ✓ EXIF ✓ Freshness ✓ Not Screenshot
+       Entry Hash: 7a3f9c2d1e8b4a6f...
 ```
 
-### Agent Commands
-
-```bash
-npm run agent              # Start agent (shows available bounties)
-npm run agent:list         # List production bounty templates
-npm run agent:outside      # Launch "prove outside" bounty
-npm run agent:handwritten  # Launch "handwritten date" bounty
-npm run agent:meal         # Launch "meal photo" bounty
-npm run agent:tower        # Launch "object tower" bounty (AI-judged)
-npm run agent:shadow       # Launch "shadow art" bounty (AI-judged)
-npm run agent:animal       # Launch "animal photo" bounty (AI-judged)
-npm run agent:monitor      # Monitor existing bounties
-```
-
-### Demo Commands
-
-```bash
-npm run demo:simulate      # Simulation mode (no real transactions)
-npm run demo:first-valid   # Demo first-valid selection
-npm run demo:ai-judged     # Demo AI-judged selection
-npm run demo:full          # Full demo with both modes
-```
-
-### Wallet Management
-
-```bash
-npm run wallet:create      # Generate new bot wallet
-npm run wallet:balance     # Check wallet balance
-```
-
-### Bounty Management
-
-```bash
-npm run bounty:cancel      # Cancel a bounty
-npm run bounty:list        # List bounties created by bot
-npm run bounty:claims      # Check claims for a bounty
-```
-
-### Testing
-
-```bash
-npm run test               # Run tests
-npm run test:watch        # Run tests in watch mode
-npm run test:coverage     # Generate coverage report
-```
-
-## Troubleshooting
-
-### "Insufficient balance" Error
-
-Your bot wallet needs ETH for gas fees and bounty rewards.
-
-```bash
-npm run wallet:balance
-# If low, send Base ETH to the displayed address
-```
-
-### "Cannot find module 'ethers'" Error
-
-Dependencies not installed:
-
-```bash
-npm install
-```
-
-### "Contract call failed" Error
-
-Check that you're on the correct network:
-
-```bash
-# Verify chain ID in .env
-CHAIN_ID=8453  # Base Mainnet
-
-# Verify contract address
-POIDH_CONTRACT_ADDRESS=0x5555Fa783936C260f77385b4E153B9725feF1719
-```
-
-### OpenAI Rate Limit
-
-For AI-judged bounties, you may hit rate limits:
-
-```bash
-# Increase delay between AI calls or upgrade your OpenAI plan
-# The bot implements exponential backoff for rate limiting
-```
-
-## Security Considerations
-
-- **Private Key:** Never commit your `.env` file. The bot's private key controls all funds.
-- **Wallet Funding:** Only fund the bot wallet with what you're willing to use for bounties.
-- **RPC Security:** Use authenticated RPC endpoints for production.
-- **Contract Verification:** Always verify contract addresses before funding.
-- **Audit Trail:** All decisions are logged to `logs/audit.json` for full transparency.
+**Verification:**
+- Each entry contains SHA-256 hash of itself + previous entry
+- Transaction hashes verifiable on [BaseScan](https://basescan.org)
+- Full audit in `logs/audit-trail.json` and `logs/audit-trail.txt`
 
 ## License
 
-MIT License - See [LICENSE](LICENSE) file for details.
+MIT License - See [LICENSE](LICENSE)
 
-Built for the poidh autonomous bounty challenge.
+---
 
-🤖 This bot operates fully autonomously after initialization - no human intervention required.
+🤖 **100% autonomous after initialization - no human intervention required**

@@ -36,6 +36,7 @@ export type AuditAction =
   | 'SUBMISSION_REJECTED'
   | 'AI_EVALUATION_STARTED'
   | 'AI_EVALUATION_COMPLETED'
+  | 'SCORING_BREAKDOWN'
   | 'WINNER_SELECTED'
   | 'WINNER_RATIONALE'
   | 'PAYOUT_INITIATED'
@@ -287,18 +288,78 @@ class AuditTrail {
           lines.push(`       Submitter: ${entry.details.submitter}`);
           lines.push(`       Claim ID: ${entry.details.claimId}`);
           break;
-        case 'SUBMISSION_REJECTED':
-          lines.push(`       Bounty: ${entry.details.bountyId}`);
-          lines.push(`       Submitter: ${entry.details.submitter}`);
-          lines.push(`       Claim ID: ${entry.details.claimId}`);
-          lines.push(`       Validation Score: ${entry.details.validationScore || 'N/A'}/100`);
-          lines.push(`       Reason: ${entry.details.reason}`);
-          if (entry.details.failedChecks && entry.details.failedChecks.length > 0) {
-            lines.push(`       Failed Checks:`);
-            for (const check of entry.details.failedChecks) {
-              lines.push(`         ✗ ${check.name}: ${check.details}`);
+        case 'SUBMISSION_VALIDATED':
+          lines.push(`       ┌${'─'.repeat(70)}`);
+          lines.push(`       │ SUBMISSION VALIDATION RESULT`);
+          lines.push(`       ├${'─'.repeat(70)}`);
+          lines.push(`       │ Bounty: ${entry.details.bountyId}`);
+          lines.push(`       │ Submitter: ${entry.details.submitter}`);
+          lines.push(`       │ Claim ID: ${entry.details.claimId}`);
+          lines.push(`       │ Status: ${entry.details.isValid ? '✓ VALID' : '✗ INVALID'}`);
+          lines.push(`       │ Validation Score: ${entry.details.validationScore}/100`);
+          if (entry.details.aiScore !== undefined) {
+            lines.push(`       │ AI Score: ${entry.details.aiScore}/100`);
+            lines.push(`       │ AI Confidence: ${(entry.details.aiConfidence * 100).toFixed(0)}%`);
+          }
+          lines.push(`       │`);
+          lines.push(`       │ SCORING BREAKDOWN:`);
+          if (entry.details.checks && entry.details.checks.length > 0) {
+            for (const check of entry.details.checks) {
+              const icon = check.passed ? '✓' : '✗';
+              const weight = check.weight ? ` (${check.weight} pts)` : '';
+              lines.push(`       │   ${icon} ${check.name}${weight}: ${check.details}`);
             }
           }
+          if (entry.details.aiReasoning) {
+            lines.push(`       │`);
+            lines.push(`       │ AI REASONING: ${entry.details.aiReasoning.substring(0, 150)}...`);
+          }
+          lines.push(`       └${'─'.repeat(70)}`);
+          break;
+        case 'SUBMISSION_REJECTED':
+          lines.push(`       ┌${'─'.repeat(70)}`);
+          lines.push(`       │ SUBMISSION REJECTED`);
+          lines.push(`       ├${'─'.repeat(70)}`);
+          lines.push(`       │ Bounty: ${entry.details.bountyId}`);
+          lines.push(`       │ Submitter: ${entry.details.submitter}`);
+          lines.push(`       │ Claim ID: ${entry.details.claimId}`);
+          lines.push(`       │ Validation Score: ${entry.details.validationScore || 'N/A'}/100`);
+          lines.push(`       │ Reason: ${entry.details.reason}`);
+          if (entry.details.failedChecks && entry.details.failedChecks.length > 0) {
+            lines.push(`       │`);
+            lines.push(`       │ FAILED CHECKS:`);
+            for (const check of entry.details.failedChecks) {
+              lines.push(`       │   ✗ ${check.name}: ${check.details}`);
+            }
+          }
+          if (entry.details.passedChecks && entry.details.passedChecks.length > 0) {
+            lines.push(`       │`);
+            lines.push(`       │ PASSED CHECKS:`);
+            for (const check of entry.details.passedChecks) {
+              lines.push(`       │   ✓ ${check.name}: ${check.details}`);
+            }
+          }
+          lines.push(`       └${'─'.repeat(70)}`);
+          break;
+        case 'SCORING_BREAKDOWN':
+          lines.push(`       ┌${'─'.repeat(70)}`);
+          lines.push(`       │ SCORING BREAKDOWN - ${entry.details.phase || 'Validation'}`);
+          lines.push(`       ├${'─'.repeat(70)}`);
+          lines.push(`       │ Bounty: ${entry.details.bountyId}`);
+          lines.push(`       │ Submitter: ${entry.details.submitter}`);
+          lines.push(`       │ Final Score: ${entry.details.finalScore}/100`);
+          lines.push(`       │`);
+          lines.push(`       │ COMPONENT SCORES:`);
+          if (entry.details.componentScores) {
+            for (const [component, score] of Object.entries(entry.details.componentScores)) {
+              lines.push(`       │   • ${component}: ${score}`);
+            }
+          }
+          if (entry.details.formula) {
+            lines.push(`       │`);
+            lines.push(`       │ FORMULA: ${entry.details.formula}`);
+          }
+          lines.push(`       └${'─'.repeat(70)}`);
           break;
         case 'WINNER_SELECTED':
           lines.push(`       Bounty: ${entry.details.bountyId}`);

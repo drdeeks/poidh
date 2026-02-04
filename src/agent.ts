@@ -274,11 +274,31 @@ export class AutonomousBountyAgent {
         bounty.config
       );
 
+      // Log full validation with scoring breakdown
+      auditTrail.log('SUBMISSION_VALIDATED', {
+        bountyId: bounty.config.id,
+        submitter: submission.submitter,
+        claimId: submission.claimId,
+        isValid: result.isValid,
+        validationScore: submission.validationResult?.score,
+        aiScore: submission.aiEvaluation?.score,
+        aiConfidence: submission.aiEvaluation?.confidence,
+        aiReasoning: submission.aiEvaluation?.reasoning,
+        checks: submission.validationResult?.checks?.map(c => ({
+          name: c.name,
+          passed: c.passed,
+          details: c.details,
+        })),
+        rationale: result.rationale,
+      });
+
       if (result.isValid) {
         // WINNER FOUND! Pay out immediately
         log.autonomous('First valid submission found - paying out', {
           bountyId: bounty.config.id,
           winner: submission.submitter,
+          validationScore: submission.validationResult?.score,
+          aiScore: submission.aiEvaluation?.score,
         });
 
         await this.payoutWinner(bounty, submission, result.rationale);
@@ -288,10 +308,11 @@ export class AutonomousBountyAgent {
         log.info('❌ Submission did not pass validation', {
           bountyId: bounty.config.id,
           submitter: submission.submitter,
+          validationScore: submission.validationResult?.score,
           reason: result.rationale,
         });
         
-        // Document rejection in audit trail
+        // Document rejection in audit trail with both failed and passed checks
         auditTrail.log('SUBMISSION_REJECTED', {
           bountyId: bounty.config.id,
           submitter: submission.submitter,
@@ -300,6 +321,9 @@ export class AutonomousBountyAgent {
           validationScore: submission.validationResult?.score,
           failedChecks: submission.validationResult?.checks
             ?.filter(c => !c.passed)
+            .map(c => ({ name: c.name, details: c.details })),
+          passedChecks: submission.validationResult?.checks
+            ?.filter(c => c.passed)
             .map(c => ({ name: c.name, details: c.details })),
         });
       }
