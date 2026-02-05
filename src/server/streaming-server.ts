@@ -166,21 +166,17 @@ export function broadcastUpdate(data: Record<string, any>): void {
 function pollAuditTrail(): void {
   try {
     const state = auditTrail.getState();
-    const newChecksum = JSON.stringify(state.entries).substring(0, 20);
-
-    if (newChecksum !== lastAuditChecksum) {
-      lastAuditChecksum = newChecksum;
+    const latestEntry = state.entries[state.entries.length - 1];
+    
+    if (latestEntry && latestEntry.entryHash !== lastAuditChecksum) { // Use entryHash for robust change detection
+      lastAuditChecksum = latestEntry.entryHash; // Update checksum with the new entryHash
       
-      // Get the latest entry
-      const latestEntry = state.entries[state.entries.length - 1];
-      if (latestEntry) {
-        broadcastUpdate({
-          action: latestEntry.action,
-          details: latestEntry.details,
-          timestamp: latestEntry.timestamp,
-          summary: state.summary,
-        });
-      }
+      broadcastUpdate({
+        action: latestEntry.action,
+        details: latestEntry.details,
+        timestamp: latestEntry.timestamp,
+        summary: state.summary,
+      });
     }
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
