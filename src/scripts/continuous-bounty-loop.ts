@@ -17,6 +17,18 @@ import { SelectionMode, ProofType } from '../bounty/types';
 import { config } from '../config';
 import { auditTrail } from '../utils/audit-trail';
 
+// Manual argument parsing
+const getArg = (name: string) => {
+  const argIndex = process.argv.indexOf(`--${name}`);
+  if (argIndex > -1 && process.argv.length > argIndex + 1) {
+    return process.argv[argIndex + 1];
+  }
+  return undefined;
+};
+
+const customRewardEth = getArg('reward');
+const targetChain = getArg('chain');
+
 const bounties = [
   {
     id: 'loop-outdoor-photo',
@@ -327,7 +339,8 @@ async function runContinuousLoop() {
 
   log.info('🚀 Starting Continuous Bounty Loop');
   log.info(`📋 Queue: ${bounties.length} photo bounties`);
-  log.info(`💰 Reward per bounty: ${bounties[0].rewardEth} ETH`);
+  const effectiveRewardEth = customRewardEth || bounties[0].rewardEth;
+  log.info(`💰 Reward per bounty: ${effectiveRewardEth} ${config.getNetworkName2(config.chainId).includes('Degen') ? 'DEGEN' : 'ETH'}`);
   log.info('⏸️  Press Ctrl+C to stop\n');
 
   try {
@@ -343,7 +356,7 @@ async function runContinuousLoop() {
       );
       log.info(`╠════════════════════════════════════════════════════════════════╣`);
       log.info(`║ ID: ${bountyConfig.id}`);
-      log.info(`║ Reward: ${bountyConfig.rewardEth} ETH`);
+      log.info(`║ Reward: ${effectiveRewardEth} ${config.getNetworkName2(config.chainId).includes('Degen') ? 'DEGEN' : 'ETH'}`);
       log.info(`║ Mode: FIRST_VALID (instant winner)`);
       log.info(`║ Photo Required: YES (with EXIF metadata)`);
       log.info(`║ Valid for: ${bountyConfig.validation.maxAgeMinutes} minutes`);
@@ -358,7 +371,7 @@ async function runContinuousLoop() {
           requirements: bountyConfig.requirements,
           proofType: bountyConfig.proofType,
           selectionMode: bountyConfig.selectionMode,
-          rewardEth: bountyConfig.rewardEth,
+          rewardEth: effectiveRewardEth,
           deadline: Math.floor(Date.now() / 1000) + bountyConfig.deadlineMinutes * 60,
           validation: bountyConfig.validation,
           tags: bountyConfig.tags,

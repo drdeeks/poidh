@@ -4,20 +4,24 @@ services:
   bounty-bot:
     build: .
     container_name: bounty-bot
-    ports:
-      - "3001:3001"
-    environment:
-      NODE_ENV: production
-      BOT_PRIVATE_KEY: ${BOT_PRIVATE_KEY}
-      RPC_URL: ${RPC_URL}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      POIDH_CONTRACT_ADDRESS: ${POIDH_CONTRACT_ADDRESS}
-      CHAIN_ID: ${CHAIN_ID}
-      STREAMING_PORT: 3001
-      LOG_LEVEL: info
+    command: npm run bounty:continuous -- --reward 50
+    env_file: .env
     volumes:
       - ./logs:/app/logs
       - ./data:/app/data
+    restart: unless-stopped
+    depends_on:
+      - streaming-server # Ensure streaming server is up for logging
+
+  streaming-server:
+    build: .
+    container_name: streaming-server
+    command: npm run server:stream
+    env_file: .env
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./logs:/app/logs
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
