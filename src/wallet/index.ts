@@ -36,11 +36,13 @@ export class WalletManager {
 
     const address = await this.wallet.getAddress();
     const balance = await this.getBalance();
+    const network = await this.provider.getNetwork();
+    const chainName = this.getChainName(Number(network.chainId));
 
     log.info(`🔑 Wallet initialized`, {
       address,
       balance: `${balance} ETH`,
-      network: 'Base Sepolia',
+      network: chainName,
     });
   }
 
@@ -172,9 +174,27 @@ export class WalletManager {
     const blockNumber = await this.provider.getBlockNumber();
     return {
       chainId: Number(network.chainId),
-      name: network.name,
+      name: this.getChainName(Number(network.chainId)),
       blockNumber,
     };
+  }
+
+  /**
+   * Get chain name from chain ID
+   */
+  private getChainName(chainId: number): string {
+    const chainNames: Record<number, string> = {
+      8453: 'Base Mainnet',
+      84532: 'Base Sepolia',
+      42161: 'Arbitrum One',
+      421614: 'Arbitrum Sepolia',
+      666666666: 'Degen',
+      1: 'Ethereum Mainnet',
+      11155111: 'Sepolia',
+      137: 'Polygon',
+      10: 'Optimism',
+    };
+    return chainNames[chainId] || `Chain ${chainId}`;
   }
 }
 

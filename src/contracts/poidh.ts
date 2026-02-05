@@ -36,9 +36,11 @@ export class POIDHContract {
       wallet
     );
 
+    const chainName = this.getChainName(config.chainId);
+
     log.info('POIDH V3 contract initialized', {
       address: config.poidhContractAddress,
-      network: config.chainId === 8453 ? 'Base Mainnet' : 'Base Sepolia',
+      network: chainName,
     });
 
     // Log contract constants for verification
@@ -750,6 +752,24 @@ export class POIDHContract {
    */
   getVotingPeriodSeconds(): number {
     return POIDH_CONSTANTS.VOTING_PERIOD;
+  }
+
+  /**
+   * Get chain name from chain ID
+   */
+  private getChainName(chainId: number): string {
+    const chainNames: Record<number, string> = {
+      8453: 'Base Mainnet',
+      84532: 'Base Sepolia',
+      42161: 'Arbitrum One',
+      421614: 'Arbitrum Sepolia',
+      666666666: 'Degen',
+      1: 'Ethereum Mainnet',
+      11155111: 'Sepolia',
+      137: 'Polygon',
+      10: 'Optimism',
+    };
+    return chainNames[chainId] || `Chain ${chainId}`;
   }
 }
 

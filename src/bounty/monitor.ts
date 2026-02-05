@@ -102,13 +102,39 @@ export class SubmissionMonitor {
       });
 
       // Process the submission with on-chain bounty ID for URI fetching
-      const submission = await this.processSubmission(configId, claim, onChainId);
+      try {
+        const submission = await this.processSubmission(configId, claim, onChainId);
 
-      // Add to bounty
-      bountyManager.addSubmission(configId, submission);
+        // Log comprehensive submission details to audit trail
+        const { auditTrail } = require('../utils/audit-trail');
+        auditTrail.log('SUBMISSION_RECEIVED', {
+          bountyId: configId,
+          onChainBountyId: onChainId,
+          claimId: claim.id.toString(),
+          submissionId: submission.id,
+          submitter: submission.submitter,
+          submittedAt: new Date(submission.timestamp).toISOString(),
+          proofUri: submission.proofUri,
+          proofType: submission.proofContent?.type || 'unknown',
+          mediaUrl: submission.proofContent?.mediaUrl,
+          description: submission.proofContent?.description,
+          status: 'pending_validation',
+          nextStep: 'Validation checks will be performed',
+        });
 
-      // Mark as processed
-      this.processedClaims.add(claimKey);
+        // Add to bounty
+        bountyManager.addSubmission(configId, submission);
+
+        // Mark as processed
+        this.processedClaims.add(claimKey);
+      } catch (error) {
+        log.warn('⚠️ Skipping invalid submission', {
+          claimId: claim.id.toString(),
+          error: (error as Error).message,
+        });
+        // Mark as processed to avoid retrying
+        this.processedClaims.add(claimKey);
+      }
     }
   }
 
@@ -150,8 +176,16 @@ export class SubmissionMonitor {
       claimId: claim.id.toString(),
       submitter: claim.issuer,
       proofUri: proofUri,
-      timestamp: Number(claim.createdAt || claim.timestamp) * 1000,
+      timestamp: Number(claim.createdAt || claim.timestamp || 0) * 1000 || Date.now(),
     };
+
+    // Skip invalid submissions (zero address or no timestamp)
+    if (submission.submitter === '0x0000000000000000000000000000000000000000') {
+      log.warn('⚠️ Skipping invalid submission (zero address)', {
+        claimId: claim.id.toString(),
+      });
+      throw new Error('Invalid submission: zero address');
+    }
 
     // Try to fetch and parse proof content if we have a URI
     if (proofUri) {

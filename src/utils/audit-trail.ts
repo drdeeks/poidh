@@ -501,12 +501,18 @@ class AuditTrail {
   getSummary(): {
     totalEntries: number;
     isValid: boolean;
+    bountiesCreated: number;
+    submissionsValidated: number;
+    winnersPaid: number;
     summary: AuditState['summary'];
   } {
     const verification = this.verify();
     return {
       totalEntries: this.state.entries.length,
       isValid: verification.valid,
+      bountiesCreated: this.state.summary.totalBountiesCreated,
+      submissionsValidated: this.state.summary.totalSubmissionsReceived,
+      winnersPaid: this.state.summary.totalPayoutsExecuted,
       summary: this.state.summary,
     };
   }

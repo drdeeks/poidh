@@ -14,6 +14,7 @@ import WebSocket from 'ws';
 import path from 'path';
 import { log } from '../utils/logger';
 import { auditTrail } from '../utils/audit-trail';
+import { config } from '../config';
 
 const app: Express = express();
 const PORT = parseInt(process.env.STREAMING_PORT || '3001', 10);
@@ -22,6 +23,14 @@ const PORT = parseInt(process.env.STREAMING_PORT || '3001', 10);
 let lastAuditChecksum = '';
 let connectedClients: WebSocket[] = [];
 let sseClients: Response[] = [];
+
+// Initialize audit trail
+try {
+  auditTrail.initialize(config.chainId, config.poidhContractAddress, config.botPrivateKey.substring(0, 42));
+  log.info('Audit trail loaded for streaming server');
+} catch (error) {
+  log.warn('Audit trail not yet initialized, will load when available');
+}
 
 // Serve static files (dashboard)
 app.use(express.static(path.join(__dirname, '../../web')));

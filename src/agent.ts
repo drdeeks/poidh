@@ -39,6 +39,7 @@ import {
 import { log } from './utils/logger';
 import { auditTrail, WinnerRationale } from './utils/audit-trail';
 import { config } from './config';
+import { parseChainFlag, selectChainInteractively, validateChainSelection } from './utils/chain-selector';
 
 /**
  * AutonomousBountyAgent - Main agent controller
@@ -52,6 +53,33 @@ import { config } from './config';
 export class AutonomousBountyAgent {
   private isRunning = false;
   private evaluationInterval: ReturnType<typeof setInterval> | null = null;
+
+  /**
+   * Get chain name from chain ID
+   */
+  private getChainName(chainId: number): string {
+    const chainNames: Record<number, string> = {
+      8453: 'Base Mainnet',
+      84532: 'Base Sepolia',
+      42161: 'Arbitrum One',
+      421614: 'Arbitrum Sepolia',
+      666666666: 'Degen',
+      1: 'Ethereum Mainnet',
+      11155111: 'Sepolia',
+      137: 'Polygon',
+      10: 'Optimism',
+    };
+    return chainNames[chainId] || `Chain ${chainId}`;
+  }
+
+  /**
+   * Get native currency for chain
+   */
+  private getNativeCurrency(chainId: number): string {
+    if (chainId === 666666666) return 'DEGEN';
+    if (chainId === 137) return 'MATIC';
+    return 'ETH';
+  }
 
   /**
    * Initialize the agent
@@ -74,8 +102,8 @@ export class AutonomousBountyAgent {
 
     log.info('✅ Agent initialized successfully', {
       walletAddress: address,
-      balance: `${balance} ETH`,
-      network: config.chainId === 8453 ? 'Base Mainnet' : 'Base Sepolia',
+      balance: `${balance} ${this.getNativeCurrency(config.chainId)}`,
+      network: this.getChainName(config.chainId),
       contractAddress: config.poidhContractAddress,
       autoApproveGas: config.autoApproveGas,
     });
@@ -110,14 +138,32 @@ export class AutonomousBountyAgent {
     // Create the bounty
     const bounty = await bountyManager.createBounty(bountyConfig);
 
-    // Log to audit trail
+    // Get chain name
+    const chainNames: Record<number, string> = {
+      8453: 'Base Mainnet',
+      84532: 'Base Sepolia',
+      42161: 'Arbitrum One',
+      421614: 'Arbitrum Sepolia',
+      666666666: 'Degen',
+    };
+    const chainName = chainNames[config.chainId] || `Chain ${config.chainId}`;
+
+    // Log to audit trail with comprehensive details
     auditTrail.log('BOUNTY_CREATED', {
       name: bountyConfig.name,
+      description: bountyConfig.description,
       configId: bountyConfig.id,
       onChainId: bounty.onChainId,
-      rewardEth: bountyConfig.rewardEth,
+      rewardAmount: bountyConfig.rewardEth,
+      rewardCurrency: chainName.includes('Degen') ? 'DEGEN' : 'ETH',
+      chainId: config.chainId,
+      chainName: chainName,
+      contractAddress: config.poidhContractAddress,
       selectionMode: bountyConfig.selectionMode,
+      proofType: bountyConfig.proofType,
       deadline: new Date(bountyConfig.deadline * 1000).toISOString(),
+      validationCriteria: bountyConfig.validation,
+      createdBy: config.botPrivateKey.substring(0, 42),
     }, bounty.createTxHash);
 
     log.bounty('Successfully created and funded', bountyConfig.id, {
@@ -126,6 +172,44 @@ export class AutonomousBountyAgent {
     });
 
     return bounty;
+  }
+
+  /**
+   * Auto-discover and monitor all bounties created by this bot
+   */
+  async monitorOwnBounties(): Promise<void> {
+    log.info('🔍 Auto-discovering bounties created by this bot...');
+    
+    const botAddress = await walletManager.getAddress();
+    const allBounties = await poidhContract.getBounties(0);
+    
+    let foundCount = 0;
+    for (const bounty of allBounties) {
+      // Only monitor bounties created by this bot that are still active
+      if (bounty.issuer.toLowerCase() === botAddress.toLowerCase() && 
+          poidhContract.isBountyActive(bounty)) {
+        
+        log.info(`✅ Found bot bounty #${bounty.id}: ${bounty.name}`);
+        
+        // Register for monitoring
+        bountyManager.registerExistingBounty({
+          id: `auto-${bounty.id}`,
+          name: bounty.name,
+          description: bounty.description,
+          requirements: 'Auto-discovered bounty',
+          proofType: 'photo' as any,
+          selectionMode: SelectionMode.FIRST_VALID,
+          rewardEth: require('ethers').formatEther(bounty.amount),
+          deadline: Math.floor(Date.now() / 1000) + 86400, // 24h from now
+          validation: {},
+          tags: ['auto-discovered'],
+        }, bounty.id.toString());
+        
+        foundCount++;
+      }
+    }
+    
+    log.info(`🎯 Monitoring ${foundCount} active bounties created by this bot`);
   }
 
   /**
@@ -141,12 +225,15 @@ export class AutonomousBountyAgent {
    */
   async launchProductionBounty(
     bountyType: keyof typeof PRODUCTION_BOUNTIES,
-    overrides?: Partial<BountyConfig>
+    customReward?: string | null
   ): Promise<ActiveBounty> {
     // Validate bounty type exists
     if (!(bountyType in PRODUCTION_BOUNTIES)) {
       throw new Error(`Unknown bounty type: ${String(bountyType)}. Available: ${Object.keys(PRODUCTION_BOUNTIES).join(', ')}`);
     }
+
+    // Create overrides with custom reward if provided
+    const overrides = customReward ? { rewardEth: customReward } : undefined;
 
     // Create fresh config with new ID and deadline (calculated at runtime)
     const freshConfig = createFreshBounty(bountyType, overrides);
@@ -274,23 +361,47 @@ export class AutonomousBountyAgent {
         bounty.config
       );
 
-      // Log full validation with scoring breakdown
-      auditTrail.log('SUBMISSION_VALIDATED', {
+      // Log full validation with comprehensive scoring breakdown
+      const validationDetails = {
         bountyId: bounty.config.id,
+        bountyName: bounty.config.name,
         submitter: submission.submitter,
         claimId: submission.claimId,
+        submissionId: submission.id,
+        proofUri: submission.proofUri,
+        submittedAt: submission.timestamp,
+        
+        // Validation Results
         isValid: result.isValid,
-        validationScore: submission.validationResult?.score,
+        validationScore: submission.validationResult?.score || 0,
+        maxPossibleScore: 100,
+        passingThreshold: 50,
+        
+        // Detailed Check Results
+        validationChecks: submission.validationResult?.checks?.map(c => ({
+          checkName: c.name,
+          passed: c.passed,
+          details: c.details,
+          reasoning: c.details,
+        })) || [],
+        
+        // AI Evaluation (if applicable)
         aiScore: submission.aiEvaluation?.score,
         aiConfidence: submission.aiEvaluation?.confidence,
         aiReasoning: submission.aiEvaluation?.reasoning,
-        checks: submission.validationResult?.checks?.map(c => ({
-          name: c.name,
-          passed: c.passed,
-          details: c.details,
-        })),
-        rationale: result.rationale,
-      });
+        aiModel: submission.aiEvaluation?.model,
+        
+        // Decision Logic
+        decisionRationale: result.rationale,
+        decisionReason: result.isValid 
+          ? `ACCEPTED: Score ${submission.validationResult?.score}/100 meets threshold of 50.`
+          : `REJECTED: ${result.rationale}`,
+        
+        // Summary
+        summary: submission.validationResult?.summary || 'No summary available',
+      };
+
+      auditTrail.log('SUBMISSION_VALIDATED', validationDetails);
 
       if (result.isValid) {
         // WINNER FOUND! Pay out immediately
@@ -413,13 +524,37 @@ export class AutonomousBountyAgent {
       rationale
     );
 
-    // Log the payout confirmation to audit trail
+    // Log comprehensive payout confirmation to audit trail
     auditTrail.log('PAYOUT_CONFIRMED', {
       bountyId: bounty.config.id,
-      onChainId: bounty.onChainId,
+      bountyName: bounty.config.name,
+      onChainBountyId: bounty.onChainId,
       winner: winner.submitter,
-      rewardEth: bounty.config.rewardEth,
       claimId: winner.claimId,
+      submissionId: winner.id,
+      
+      // Payment Details
+      rewardAmount: bounty.config.rewardEth,
+      rewardCurrency: this.getNativeCurrency(config.chainId),
+      chainId: config.chainId,
+      chainName: this.getChainName(config.chainId),
+      contractAddress: config.poidhContractAddress,
+      
+      // Validation Summary
+      validationScore: winner.validationResult?.score,
+      validationPassed: winner.validationResult?.isValid,
+      aiScore: winner.aiEvaluation?.score,
+      
+      // Transaction Details
+      transactionHash: txHash,
+      paidAt: new Date().toISOString(),
+      
+      // Decision Summary
+      selectionMode: bounty.config.selectionMode,
+      winnerRationale: rationale,
+      
+      status: 'completed',
+      finalStep: 'Payment released to winner on-chain',
     }, txHash);
 
     // Log the payout
@@ -633,7 +768,33 @@ export const agent = new AutonomousBountyAgent();
 if (require.main === module) {
   async function main() {
     const args = process.argv.slice(2);
-    const bountyArg = args[0];
+    let bountyArg = args[0];
+    let chainId: number | null = null;
+
+    // Parse chain flags
+    const chainFlagIndex = args.findIndex(arg => arg === '--chain' || arg === '-c');
+    if (chainFlagIndex !== -1 && args[chainFlagIndex + 1]) {
+      const chainFlag = args[chainFlagIndex + 1];
+      chainId = parseChainFlag(chainFlag);
+      if (!chainId) {
+        console.log(`❌ Invalid chain: ${chainFlag}`);
+        console.log(`\n💡 Supported chains:`);
+        console.log(`   base, base-mainnet (8453)`);
+        console.log(`   base-sepolia (84532)`);
+        console.log(`   arbitrum, arbitrum-one (42161)`);
+        console.log(`   arbitrum-sepolia (421614)`);
+        console.log(`   degen (666666666)`);
+        console.log(`   ethereum, eth (1)`);
+        console.log(`   sepolia (11155111)`);
+        console.log(`   polygon, matic (137)`);
+        console.log(`   optimism, op (10)`);
+        console.log(`\n   Or use chain ID directly: --chain 8453`);
+        process.exit(1);
+      }
+      // Remove chain flags from args
+      args.splice(chainFlagIndex, 2);
+      bountyArg = args[0];
+    }
 
     console.log(`
 ╔══════════════════════════════════════════════════════════════════════════════╗
@@ -642,9 +803,6 @@ if (require.main === module) {
 ║                                                                              ║
 ║     Fully autonomous bounty creation, monitoring, and payout                 ║
 ║     No human intervention required after initialization                      ║
-║                                                                              ║
-║     Contract: POIDH V3 on Base Mainnet                                       ║
-║     Address:  0x5555Fa783936C260f77385b4E153B9725feF1719                     ║
 ║                                                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 `);
@@ -656,59 +814,42 @@ if (require.main === module) {
         process.exit(0);
       }
 
+      // Handle chain selection
+      if (!chainId) {
+        if (process.env.CHAIN_ID) {
+          chainId = parseInt(process.env.CHAIN_ID);
+        } else {
+          console.log('🔗 No chain specified. Please select a network:');
+          const selection = await selectChainInteractively();
+          chainId = selection.chainId;
+        }
+      }
+
+      // Validate and set chain
+      validateChainSelection(chainId);
+      process.env.CHAIN_ID = chainId.toString();
+
+      // Parse reward flag
+      const rewardFlagIndex = args.findIndex(arg => arg === '--reward');
+      let customReward: string | null = null;
+      if (rewardFlagIndex !== -1 && args[rewardFlagIndex + 1]) {
+        customReward = args[rewardFlagIndex + 1];
+        console.log(`💰 Custom reward: ${customReward} ETH`);
+      }
+
       await agent.initialize();
 
-      // Handle 'monitor' command - attach to existing bounty without creating new one
+      // Handle 'monitor' command - auto-discover all bot's bounties
       if (bountyArg === 'monitor') {
-        const bountyId = args[1];
-        if (!bountyId) {
-          console.log(`\n❌ Usage: npm run agent monitor <bountyId>`);
-          console.log(`   Example: npm run agent monitor 123`);
-          console.log(`\n   Run 'npm run bounty:list' to see available bounties\n`);
-          process.exit(1);
-        }
-
-        console.log(`\n🔍 Attaching to existing bounty #${bountyId}...\n`);
-
-        // Fetch bounty from chain
-        const bounty = await poidhContract.getBounty(bountyId);
-        if (!bounty) {
-          console.log(`❌ Bounty #${bountyId} not found on chain`);
-          process.exit(1);
-        }
-
-        // Check if still active
-        if (!poidhContract.isBountyActive(bounty)) {
-          console.log(`❌ Bounty #${bountyId} is not active (may be completed or cancelled)`);
-          process.exit(1);
-        }
-
-        console.log(`✅ Found active bounty:`);
-        console.log(`   Name: ${bounty.name}`);
-        console.log(`   Reward: ${require('ethers').formatEther(bounty.amount)} ETH`);
-        console.log(`   Issuer: ${bounty.issuer}`);
-
-        // Register it with bounty manager for monitoring
-        const activeBounty = bountyManager.registerExistingBounty({
-          id: `existing-${bountyId}`,
-          name: bounty.name,
-          description: bounty.description,
-          requirements: 'Monitoring existing bounty',
-          proofType: 'photo' as any,
-          selectionMode: SelectionMode.FIRST_VALID, // Default to first-valid
-          rewardEth: require('ethers').formatEther(bounty.amount),
-          deadline: Math.floor(Date.now() / 1000) + 86400, // 24h from now
-          validation: {},
-          tags: ['existing'],
-        }, bountyId);
-
-        console.log(`\n🎯 Now monitoring bounty #${bountyId} for submissions...\n`);
+        console.log(`\n🔍 Auto-discovering bounties created by this bot...\n`);
+        await agent.monitorOwnBounties();
+        console.log(`\n✅ Now monitoring all active bounties\n`);
       }
       // If bounty type specified, launch that bounty
       else if (bountyArg && bountyArg in PRODUCTION_BOUNTIES) {
         const bountyType = bountyArg as keyof typeof PRODUCTION_BOUNTIES;
         console.log(`\n🎯 Launching production bounty: ${bountyType}\n`);
-        await agent.launchProductionBounty(bountyType);
+        await agent.launchProductionBounty(bountyType, customReward);
       } else if (bountyArg) {
         console.log(`\n❌ Unknown bounty type: ${bountyArg}`);
         console.log(`\n💡 Available commands:`);
