@@ -14,6 +14,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { getChainName, getBlockExplorerUrl } from '../config/chains';
 
 export interface AuditEntry {
   sequence: number;
@@ -153,7 +154,7 @@ class AuditTrail {
       chainId,
       contractAddress,
       agentWallet,
-      network: chainId === 8453 ? 'Base Mainnet' : 'Base Sepolia',
+      network: getChainName(chainId),
     });
   }
 
@@ -187,7 +188,7 @@ class AuditTrail {
       ...entryData,
       entryHash,
       blockExplorerUrl: txHash
-        ? `https://${this.state.chainId === 8453 ? 'basescan.org' : 'sepolia.basescan.org'}/tx/${txHash}`
+        ? getBlockExplorerUrl(this.state.chainId, txHash)
         : undefined,
     };
 
@@ -256,7 +257,7 @@ class AuditTrail {
       `Generated: ${new Date().toISOString()}`,
       `Agent Wallet: ${this.state.agentWallet}`,
       `Contract: ${this.state.contractAddress}`,
-      `Network: ${this.state.chainId === 8453 ? 'Base Mainnet' : 'Base Sepolia'}`,
+      `Network: ${getChainName(this.state.chainId)}`,
       '',
       '─'.repeat(80),
       '                              SUMMARY',

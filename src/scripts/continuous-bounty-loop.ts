@@ -14,7 +14,7 @@
 import { AutonomousBountyAgent } from '../agent';
 import { log } from '../utils/logger';
 import { SelectionMode, ProofType } from '../bounty/types';
-import { config } from '../config';
+import { config, getNetworkName2 } from '../config';
 import { auditTrail } from '../utils/audit-trail';
 
 // Manual argument parsing
@@ -340,7 +340,7 @@ async function runContinuousLoop() {
   log.info('🚀 Starting Continuous Bounty Loop');
   log.info(`📋 Queue: ${bounties.length} photo bounties`);
   const effectiveRewardEth = customRewardEth || bounties[0].rewardEth;
-  log.info(`💰 Reward per bounty: ${effectiveRewardEth} ${config.getNetworkName2(config.chainId).includes('Degen') ? 'DEGEN' : 'ETH'}`);
+  log.info(`💰 Reward per bounty: ${effectiveRewardEth} ${getNetworkName2(config.chainId).includes('Degen') ? 'DEGEN' : 'ETH'}`);
   log.info('⏸️  Press Ctrl+C to stop\n');
 
   try {
@@ -356,7 +356,7 @@ async function runContinuousLoop() {
       );
       log.info(`╠════════════════════════════════════════════════════════════════╣`);
       log.info(`║ ID: ${bountyConfig.id}`);
-      log.info(`║ Reward: ${effectiveRewardEth} ${config.getNetworkName2(config.chainId).includes('Degen') ? 'DEGEN' : 'ETH'}`);
+      log.info(`║ Reward: ${effectiveRewardEth} ${getNetworkName2(config.chainId).includes('Degen') ? 'DEGEN' : 'ETH'}`);
       log.info(`║ Mode: FIRST_VALID (instant winner)`);
       log.info(`║ Photo Required: YES (with EXIF metadata)`);
       log.info(`║ Valid for: ${bountyConfig.validation.maxAgeMinutes} minutes`);

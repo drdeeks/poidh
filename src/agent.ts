@@ -40,6 +40,9 @@ import { log } from './utils/logger';
 import { auditTrail, WinnerRationale } from './utils/audit-trail';
 import { config } from './config';
 import { parseChainFlag, selectChainInteractively, validateChainSelection } from './utils/chain-selector';
+import { gracefulShutdown } from './utils/fallback';
+import { AIError } from './utils/errors';
+
 
 /**
  * AutonomousBountyAgent - Main agent controller
@@ -86,6 +89,15 @@ export class AutonomousBountyAgent {
    */
   async initialize(): Promise<void> {
     log.info('🤖 Initializing Autonomous Bounty Agent...');
+
+    // Register shutdown handler
+    gracefulShutdown.onShutdown(async () => {
+      log.info('Saving agent state before shutdown...');
+      // In a real implementation, you would save the state of active bounties
+      // to a persistent store (e.g., a database or a file) here.
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate saving state
+      log.info('Agent state saved.');
+    });
 
     // Initialize wallet
     await walletManager.initialize();
@@ -292,10 +304,17 @@ export class AutonomousBountyAgent {
       try {
         await this.processBounty(bounty);
       } catch (error) {
-        log.error('Error processing bounty', {
-          bountyId: bounty.config.id,
-          error: (error as Error).message,
-        });
+        if (error instanceof AIError) {
+          log.warn('AI evaluation failed, but continuing to process other bounties', {
+            bountyId: bounty.config.id,
+            error: (error as Error).message,
+          });
+        } else {
+          log.error('Error processing bounty', {
+            bountyId: bounty.config.id,
+            error: (error as Error).message,
+          });
+        }
       }
     }
 

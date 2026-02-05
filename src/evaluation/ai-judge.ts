@@ -3,6 +3,8 @@ import { Submission, AIEvaluation, BountyConfig } from '../bounty/types';
 import { config } from '../config';
 import { log } from '../utils/logger';
 import axios from 'axios';
+import { withRetry } from '../utils/errors';
+import { CircuitBreaker, RateLimiter } from '../utils/fallback';
 
 /**
  * AIJudge - GPT-4 Vision powered submission evaluator
@@ -16,12 +18,16 @@ import axios from 'axios';
 export class AIJudge {
   private openai: OpenAI;
   private model: string;
+  private circuitBreaker: CircuitBreaker;
+  private rateLimiter: RateLimiter;
 
   constructor() {
     this.openai = new OpenAI({
       apiKey: config.openaiApiKey,
     });
     this.model = config.openaiVisionModel || 'gpt-4o';
+    this.circuitBreaker = new CircuitBreaker(5, 60000); // 5 failures, 1 minute reset
+    this.rateLimiter = new RateLimiter(10, 1); // 10 tokens, 1 token/sec refill
   }
 
   /**
@@ -48,12 +54,15 @@ export class AIJudge {
     const prompt = this.buildPrompt(bountyConfig);
 
     try {
-      const response = await this.openai.chat.completions.create({
-        model: this.model,
-        messages: [
-          {
-            role: 'system',
-            content: `You are an autonomous bounty judge evaluating real-world proof submissions.
+      return await withRetry(async () => {
+        await this.rateLimiter.acquire();
+        const response = await this.circuitBreaker.execute(() => 
+          this.openai.chat.completions.create({
+            model: this.model,
+            messages: [
+              {
+                role: 'system',
+                content: `You are an autonomous bounty judge evaluating real-world proof submissions.
 You must be fair, objective, and thorough in your evaluation.
 Your judgments will automatically trigger payouts, so accuracy is critical.
 
@@ -65,32 +74,38 @@ Key responsibilities:
 
 IMPORTANT: If you detect signs of AI generation (unusual artifacts, impossible lighting,
 anatomical errors, text inconsistencies), mark the submission as INVALID with score 0.`,
-          },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: prompt,
               },
               {
-                type: 'image_url',
-                image_url: {
-                  url: imageUrl,
-                  detail: 'high',
-                },
+                role: 'user',
+                content: [
+                  {
+                    type: 'text',
+                    text: prompt,
+                  },
+                  {
+                    type: 'image_url',
+                    image_url: {
+                      url: imageUrl,
+                      detail: 'high',
+                    },
+                  },
+                ],
               },
             ],
-          },
-        ],
-        max_tokens: 1500,
-        temperature: 0.3, // Lower temperature for more consistent judging
-      });
+            max_tokens: 1500,
+            temperature: 0.3, // Lower temperature for more consistent judging
+          })
+        );
 
-      const content = response.choices[0]?.message?.content || '';
-      return this.parseResponse(content, submission.id);
+        const content = response.choices[0]?.message?.content || '';
+        return this.parseResponse(content, submission.id);
+      }, {
+        maxRetries: 3,
+        baseDelayMs: 2000,
+        retryOn: (error: Error) => error.message.includes('rate limit') || error.message.includes('timed out'),
+      });
     } catch (error) {
-      log.error('AI evaluation failed', {
+      log.error('AI evaluation failed after multiple retries', {
         submissionId: submission.id,
         error: (error as Error).message,
       });

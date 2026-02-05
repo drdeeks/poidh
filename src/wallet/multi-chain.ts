@@ -7,11 +7,12 @@ import { Wallet, JsonRpcProvider, formatEther } from 'ethers';
 import { config, getNetworkName2, getBlockExplorerUrl } from '../config';
 import { getChainConfig } from '../config/chains';
 import { log } from '../utils/logger';
+import { FallbackProvider } from '../utils/fallback';
 
 export interface ChainWallet {
   chainId: number;
   wallet: Wallet;
-  provider: JsonRpcProvider;
+  provider: FallbackProvider;
   rpcUrl: string;
 }
 
@@ -39,22 +40,18 @@ export class MultiChainWalletManager {
     }
 
     const chainConfig = getChainConfig(chainId);
-    const rpcUrl = chainConfig.rpcUrls[0];
-
-    // Create provider
-    const provider = new JsonRpcProvider(rpcUrl, {
-      chainId,
-      name: chainConfig.name,
-    });
+    
+    // Create provider with fallback
+    const provider = new FallbackProvider(chainConfig.rpcUrls, chainId);
 
     // Create wallet
-    const wallet = new Wallet(this.botPrivateKey, provider);
+    const wallet = new Wallet(this.botPrivateKey, provider.getProvider());
 
     const chainWallet: ChainWallet = {
       chainId,
       wallet,
       provider,
-      rpcUrl,
+      rpcUrl: chainConfig.rpcUrls[0],
     };
 
     this.wallets.set(chainId, chainWallet);
@@ -62,7 +59,7 @@ export class MultiChainWalletManager {
     log.info(`Wallet initialized on ${chainConfig.name}`, {
       chainId,
       address: wallet.address,
-      rpcUrl: rpcUrl.substring(0, 64),
+      rpcUrls: chainConfig.rpcUrls,
     });
 
     return chainWallet;
@@ -108,7 +105,7 @@ export class MultiChainWalletManager {
   /**
    * Get provider for specific chain
    */
-  getProvider(chainId: number): JsonRpcProvider {
+  getProvider(chainId: number): FallbackProvider {
     const chainWallet = this.wallets.get(chainId);
     if (!chainWallet) {
       throw new Error(`Provider not initialized for chain ${chainId}`);
@@ -133,9 +130,10 @@ export class MultiChainWalletManager {
   async getBalance(chainId: number): Promise<string> {
     const provider = this.getProvider(chainId);
     const wallet = this.getWallet(chainId);
-    const balance = await provider.getBalance(wallet.address);
+    const balance = await provider.execute(p => p.getBalance(wallet.address));
     return formatEther(balance);
   }
+
 
   /**
    * Get balance on all chains
@@ -145,7 +143,7 @@ export class MultiChainWalletManager {
 
     for (const [chainId, chainWallet] of this.wallets) {
       try {
-        const balance = await chainWallet.provider.getBalance(chainWallet.wallet.address);
+        const balance = await chainWallet.provider.execute(p => p.getBalance(chainWallet.wallet.address));
         balances.set(chainId, formatEther(balance));
       } catch (error) {
         log.warn(`Failed to get balance on chain ${chainId}`, {
@@ -191,7 +189,7 @@ export class MultiChainWalletManager {
 
     for (const [chainId, chainWallet] of this.wallets) {
       try {
-        const balance = await chainWallet.provider.getBalance(address);
+        const balance = await chainWallet.provider.execute(p => p.getBalance(address));
         const networkName = getNetworkName2(chainId);
         log.info(`  ${networkName}: ${formatEther(balance)} ETH`, {
           chainId,

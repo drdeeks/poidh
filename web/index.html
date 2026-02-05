@@ -198,9 +198,21 @@
                         <span class="stat-label">Total Entries</span>
                         <span class="stat-value" id="total-entries">0</span>
                     </div>
+                </div>
+
+                <div class="card">
+                    <h2>Chain Information</h2>
+                    <div class="stat">
+                        <span class="stat-label">Chain Name</span>
+                        <span class="stat-value" id="chain-name">-</span>
+                    </div>
                     <div class="stat">
                         <span class="stat-label">Chain ID</span>
                         <span class="stat-value" id="chain-id">-</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Contract Address</span>
+                        <span class="stat-value" id="contract-address">-</span>
                     </div>
                 </div>
 
@@ -262,11 +274,19 @@
             
             // Update stats
             document.getElementById('total-entries').textContent = data.state?.totalEntries || data.summary?.totalEntries || 0;
-            document.getElementById('bounties-created').textContent = data.summary?.bountiesCreated || 0;
+            document.getElementById('bounties-created').textContent = data.summary?.totalBountiesCreated || 0;
             document.getElementById('submissions-validated').textContent = data.summary?.submissionsValidated || 0;
             document.getElementById('winners-paid').textContent = data.summary?.winnersPaid || 0;
             document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+            
             document.getElementById('chain-id').textContent = data.state?.chainId || '-';
+            if (data.state?.chainId) {
+                const agentStartedEntry = data.state?.entries?.find(e => e.action === 'AGENT_STARTED');
+                if (agentStartedEntry) {
+                    document.getElementById('chain-name').textContent = agentStartedEntry.details?.network || '-';
+                }
+            }
+            document.getElementById('contract-address').textContent = data.state?.contractAddress || '-';
             
             // Update entries
             if (data.state && data.state.entries && data.state.entries.length > 0) {
@@ -281,12 +301,14 @@
                     entryDiv.className = 'entry';
                     
                     const time = new Date(entry.timestamp).toLocaleString();
-                    const details = formatDetails(entry.details);
+                    const details = formatDetails(entry.details, entry.action);
                     
                     // Extract bounty ID if present
                     let bountyIdBadge = '';
                     if (entry.details && entry.details.bountyId) {
                         bountyIdBadge = `<span class="bounty-id">#${entry.details.bountyId}</span>`;
+                    } else if (entry.details && entry.details.onChainId) {
+                        bountyIdBadge = `<span class="bounty-id">#${entry.details.onChainId}</span>`;
                     } else if (entry.details && typeof entry.details === 'string' && entry.details.includes('On-Chain ID:')) {
                         const match = entry.details.match(/On-Chain ID:\s*(\d+)/);
                         if (match) {
@@ -307,17 +329,53 @@
             }
         }
         
-        function formatDetails(details) {
+        function formatDetails(details, action) {
             if (typeof details === 'string') return details;
-            if (typeof details === 'object') {
-                // Format object details nicely
+            if (typeof details === 'object' && details !== null) {
                 let formatted = '';
-                for (const [key, value] of Object.entries(details)) {
-                    if (key === 'bountyId' || key === 'txHash' || key === 'rewardEth') {
-                        formatted += `${key}: ${value}\n`;
-                    }
+                switch (action) {
+                    case 'BOUNTY_CREATED':
+                        formatted += `Name: ${details.name}\n`;
+                        formatted += `Reward: ${details.rewardEth} ${details.nativeCurrency || ''}\n`;
+                        if(details.onChainId) formatted += `On-Chain ID: ${details.onChainId}\n`;
+                        break;
+                    case 'SUBMISSION_VALIDATED':
+                        formatted += `Bounty ID: ${details.bountyId}\n`;
+                        formatted += `Submitter: ${details.submitter}\n`;
+                        formatted += `Claim ID: ${details.claimId}\n`;
+                        formatted += `Status: ${details.isValid ? '✓ VALID' : '✗ INVALID'}\n`;
+                        formatted += `Score: ${details.validationScore}/100\n`;
+                        if (details.checks) {
+                            formatted += 'Checks:\n';
+                            details.checks.forEach(check => {
+                                formatted += `  ${check.passed ? '✓' : '✗'} ${check.name}: ${check.details}\n`;
+                            });
+                        }
+                        break;
+                    case 'WINNER_RATIONALE':
+                        formatted += `Bounty: ${details.bountyName} (${details.bountyId})\n`;
+                        formatted += `Winner: ${details.winner.address}\n`;
+                        formatted += `Decision: ${details.decisionSummary}\n`;
+                        if (details.validationChecks) {
+                            formatted += 'Checks:\n';
+                            details.validationChecks.forEach(check => {
+                                formatted += `  ${check.passed ? '✓' : '✗'} ${check.name}: ${check.details}\n`;
+                            });
+                        }
+                        if (details.aiEvaluation) {
+                            formatted += 'AI Evaluation:\n';
+                            formatted += `  Score: ${details.aiEvaluation.score}/100\n`;
+                            formatted += `  Reasoning: ${details.aiEvaluation.reasoning}\n`;
+                        }
+                        break;
+                    default:
+                        for (const [key, value] of Object.entries(details)) {
+                            if (typeof value !== 'object') {
+                                formatted += `${key}: ${value}\n`;
+                            }
+                        }
                 }
-                return formatted || JSON.stringify(details, null, 2);
+                return formatted.trim() || JSON.stringify(details, null, 2);
             }
             return String(details);
         }

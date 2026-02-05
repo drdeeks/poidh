@@ -100,7 +100,7 @@ export class MultiChainContractManager {
       try {
         const chainConfig = getChainConfig(chainId);
         const contractAddress = await contract.getAddress();
-        const code = await this.walletManager.getProvider(chainId).getCode(contractAddress as string);
+        const code = await this.walletManager.getProvider(chainId).execute(p => p.getCode(contractAddress as string));
         const isDeployed = code !== '0x';
 
         results.push({
