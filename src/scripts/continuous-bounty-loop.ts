@@ -301,7 +301,7 @@ function displayWinnerRationale(bountyId: string): void {
 }
 
 /**
- * Display rejection details from audit trail
+ * Display rejection details from audit trail with full reasoning
  */
 function displayRejectionDetails(bountyId: string): void {
   const auditState = auditTrail.getState();
@@ -315,23 +315,168 @@ function displayRejectionDetails(bountyId: string): void {
     return;
   }
 
-  if (rejectionEntries.length > 0) {
-    log.info(`\n⚠️  REJECTED SUBMISSIONS SUMMARY:`);
-    for (const entry of rejectionEntries.slice(0, 3)) {
-      const submitter = entry.details.submitter?.substring(0, 10) || 'unknown';
-      const reason = entry.details.reason || 'validation failed';
-      log.info(`   ✗ ${submitter}... - ${reason}`);
-      
-      if (entry.details.failedChecks && entry.details.failedChecks.length > 0) {
-        for (const check of entry.details.failedChecks.slice(0, 2)) {
-          log.info(`     • ${check.name}: ${check.details}`);
-        }
+  log.info(`\n┌${'─'.repeat(66)}`);
+  log.info(`│ ⚠️  REJECTED SUBMISSIONS (${rejectionEntries.length} total)`);
+  log.info(`├${'─'.repeat(66)}`);
+  
+  for (const entry of rejectionEntries.slice(0, 5)) {
+    const submitter = entry.details.submitter?.substring(0, 12) || 'unknown';
+    const claimId = entry.details.claimId || 'N/A';
+    const score = entry.details.validationScore ?? 'N/A';
+    
+    log.info(`│`);
+    log.info(`│ Submitter: ${submitter}...`);
+    log.info(`│ Claim ID: ${claimId}`);
+    log.info(`│ Validation Score: ${score}/100`);
+    log.info(`│`);
+    log.info(`│ REJECTION REASON:`);
+    
+    const reason = entry.details.reason || 'Validation failed';
+    const reasonLines = reason.split('\n').slice(0, 2);
+    for (const line of reasonLines) {
+      log.info(`│   ${line.substring(0, 60)}`);
+    }
+    
+    if (entry.details.failedChecks && entry.details.failedChecks.length > 0) {
+      log.info(`│`);
+      log.info(`│ FAILED CHECKS (Why Rejected):`);
+      for (const check of entry.details.failedChecks) {
+        log.info(`│   ✗ ${check.name}: ${check.details?.substring(0, 50) || 'Failed'}`);
       }
     }
-    if (rejectionEntries.length > 3) {
-      log.info(`   ... and ${rejectionEntries.length - 3} more rejections`);
+    
+    if (entry.details.passedChecks && entry.details.passedChecks.length > 0) {
+      log.info(`│`);
+      log.info(`│ PASSED CHECKS:`);
+      for (const check of entry.details.passedChecks) {
+        log.info(`│   ✓ ${check.name}: ${check.details?.substring(0, 50) || 'Passed'}`);
+      }
+    }
+    
+    log.info(`│`);
+    log.info(`│ VERIFICATION METHOD:`);
+    log.info(`│   Validation engine evaluated submission against bounty criteria.`);
+    log.info(`│   Score did not meet minimum threshold of 50/100.`);
+    log.info(`├${'─'.repeat(66)}`);
+  }
+  
+  if (rejectionEntries.length > 5) {
+    log.info(`│ ... and ${rejectionEntries.length - 5} more rejections`);
+  }
+  log.info(`└${'─'.repeat(66)}\n`);
+}
+
+/**
+ * Display validation decision details (acceptance or rejection)
+ */
+function displayValidationDecision(bountyId: string): void {
+  const auditState = auditTrail.getState();
+  
+  const validationEntries = auditState.entries.filter(
+    entry => entry.action === 'SUBMISSION_VALIDATED' && 
+             entry.details.bountyId === bountyId
+  );
+
+  if (validationEntries.length === 0) {
+    return;
+  }
+
+  for (const entry of validationEntries) {
+    const isValid = entry.details.isValid;
+    const status = isValid ? '✓ ACCEPTED' : '✗ REJECTED';
+    const statusIcon = isValid ? '🎉' : '❌';
+    
+    log.info(`\n┌${'─'.repeat(66)}`);
+    log.info(`│ ${statusIcon} SUBMISSION VALIDATION RESULT`);
+    log.info(`├${'─'.repeat(66)}`);
+    log.info(`│ Bounty: ${entry.details.bountyName || entry.details.bountyId}`);
+    log.info(`│ Submitter: ${entry.details.submitter}`);
+    log.info(`│ Claim ID: ${entry.details.claimId}`);
+    log.info(`│ Status: ${status}`);
+    log.info(`│ Score: ${entry.details.validationScore}/100 (Threshold: ${entry.details.passingThreshold || 50})`);
+    
+    if (entry.details.aiScore !== undefined) {
+      log.info(`│ AI Score: ${entry.details.aiScore}/100`);
+      log.info(`│ AI Confidence: ${((entry.details.aiConfidence || 0) * 100).toFixed(0)}%`);
+    }
+    
+    log.info(`│`);
+    log.info(`│ VALIDATION CHECKS:`);
+    
+    const checks = entry.details.validationChecks || entry.details.checks || [];
+    for (const check of checks) {
+      const icon = check.passed ? '✓' : '✗';
+      const name = check.checkName || check.name;
+      const details = check.details || check.reasoning || '';
+      log.info(`│   ${icon} ${name}: ${details.substring(0, 50)}`);
+    }
+    
+    if (entry.details.decisionReason) {
+      log.info(`│`);
+      log.info(`│ DECISION:`);
+      log.info(`│   ${entry.details.decisionReason.substring(0, 60)}`);
+    }
+    
+    if (entry.details.aiReasoning) {
+      log.info(`│`);
+      log.info(`│ AI REASONING:`);
+      log.info(`│   ${entry.details.aiReasoning.substring(0, 60)}...`);
+    }
+    
+    log.info(`└${'─'.repeat(66)}\n`);
+  }
+}
+
+/**
+ * Display auto-indexed bounties from audit trail
+ */
+function displayAutoIndexedBounties(): void {
+  const auditState = auditTrail.getState();
+  
+  const indexedEntries = auditState.entries.filter(
+    entry => entry.action === 'BOUNTIES_AUTO_INDEXED'
+  );
+
+  if (indexedEntries.length === 0) {
+    return;
+  }
+
+  const latestEntry = indexedEntries[indexedEntries.length - 1];
+  const details = latestEntry.details;
+
+  log.info(`\n┌${'─'.repeat(66)}`);
+  log.info(`│ 🔍 BOUNTY AUTO-INDEXING RESULT`);
+  log.info(`├${'─'.repeat(66)}`);
+  log.info(`│ Bot Wallet: ${details.botWalletAddress}`);
+  log.info(`│ Chain: ${details.chainName} (ID: ${details.chainId})`);
+  log.info(`│ Native Currency: ${details.nativeCurrency}`);
+  log.info(`│ Total Bounties Scanned: ${details.totalBountiesScanned}`);
+  log.info(`│ Bot Bounties Found: ${details.botBountiesFound}`);
+  log.info(`│`);
+  log.info(`│ FILTER CRITERIA:`);
+  log.info(`│   ${details.filterCriteria}`);
+  log.info(`│`);
+  log.info(`│ VERIFICATION LOGIC:`);
+  if (details.verificationLogic) {
+    for (const step of details.verificationLogic) {
+      log.info(`│   ${step}`);
     }
   }
+  
+  if (details.discoveredBounties && details.discoveredBounties.length > 0) {
+    log.info(`│`);
+    log.info(`│ DISCOVERED BOUNTIES:`);
+    for (const bounty of details.discoveredBounties.slice(0, 10)) {
+      log.info(`│   #${bounty.id}: ${bounty.name}`);
+      log.info(`│      Reward: ${bounty.rewardAmount} ${bounty.rewardCurrency}`);
+      log.info(`│      Chain: ${bounty.chainName}`);
+    }
+    if (details.discoveredBounties.length > 10) {
+      log.info(`│   ... and ${details.discoveredBounties.length - 10} more`);
+    }
+  }
+  
+  log.info(`└${'─'.repeat(66)}\n`);
 }
 
 async function runContinuousLoop() {
@@ -391,6 +536,9 @@ async function runContinuousLoop() {
 
           if (activeBounties === 0) {
             log.info(`\n✨ Bounty Complete!\n`);
+            
+            // Display all validation decisions with full reasoning
+            displayValidationDecision(bounty.config.id);
             
             // Display detailed winner rationale and reasoning
             displayWinnerRationale(bounty.config.id);
