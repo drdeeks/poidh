@@ -537,15 +537,27 @@ class AuditTrail {
     submissionsValidated: number;
     winnersPaid: number;
     summary: AuditState['summary'];
+    chainId: number;
+    chainName: string;
+    contractAddress: string;
   } {
     const verification = this.verify();
+    
+    // Count actual validated submissions (both accepted and rejected)
+    const validatedCount = this.state.entries.filter(
+      e => e.action === 'SUBMISSION_VALIDATED' || e.action === 'SUBMISSION_REJECTED'
+    ).length;
+    
     return {
       totalEntries: this.state.entries.length,
       isValid: verification.valid,
       bountiesCreated: this.state.summary.totalBountiesCreated,
-      submissionsValidated: this.state.summary.totalSubmissionsReceived,
+      submissionsValidated: validatedCount,
       winnersPaid: this.state.summary.totalPayoutsExecuted,
       summary: this.state.summary,
+      chainId: this.state.chainId,
+      chainName: getChainName(this.state.chainId),
+      contractAddress: this.state.contractAddress,
     };
   }
 

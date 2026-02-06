@@ -272,21 +272,24 @@
         function updateDashboard(data) {
             if (!data.state && !data.summary) return;
             
-            // Update stats
-            document.getElementById('total-entries').textContent = data.state?.totalEntries || data.summary?.totalEntries || 0;
-            document.getElementById('bounties-created').textContent = data.summary?.totalBountiesCreated || 0;
-            document.getElementById('submissions-validated').textContent = data.summary?.submissionsValidated || 0;
-            document.getElementById('winners-paid').textContent = data.summary?.winnersPaid || 0;
+            // Update stats - use summary data which has correct counts
+            const summary = data.summary || {};
+            const state = data.state || {};
+            
+            document.getElementById('total-entries').textContent = summary.totalEntries || state.totalEntries || 0;
+            document.getElementById('bounties-created').textContent = summary.bountiesCreated || summary.totalBountiesCreated || 0;
+            document.getElementById('submissions-validated').textContent = summary.submissionsValidated || 0;
+            document.getElementById('winners-paid').textContent = summary.winnersPaid || 0;
             document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
             
-            document.getElementById('chain-id').textContent = data.state?.chainId || '-';
-            if (data.state?.chainId) {
-                const agentStartedEntry = data.state?.entries?.find(e => e.action === 'AGENT_STARTED');
-                if (agentStartedEntry) {
-                    document.getElementById('chain-name').textContent = agentStartedEntry.details?.network || '-';
-                }
-            }
-            document.getElementById('contract-address').textContent = data.state?.contractAddress || '-';
+            // Get chain info from summary first, fallback to state
+            const chainId = summary.chainId || state.chainId;
+            const chainName = summary.chainName || state.chainName;
+            const contractAddress = summary.contractAddress || state.contractAddress;
+            
+            document.getElementById('chain-id').textContent = chainId ? chainId.toString() : '-';
+            document.getElementById('chain-name').textContent = chainName || '-';
+            document.getElementById('contract-address').textContent = contractAddress || '-';
             
             // Update entries
             if (data.state && data.state.entries && data.state.entries.length > 0) {

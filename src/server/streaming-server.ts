@@ -44,6 +44,23 @@ app.get('/health', (req: Request, res: Response) => {
 });
 
 /**
+ * Debug endpoint
+ */
+app.get('/api/debug-summary', (req: Request, res: Response) => {
+  try {
+    const summary = auditTrail.getSummary();
+    log.info('DEBUG Summary object', summary);
+    res.json({
+      summary,
+      keys: Object.keys(summary),
+    });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: msg });
+  }
+});
+
+/**
  * Get current audit trail state
  */
 app.get('/api/audit-state', (req: Request, res: Response) => {
@@ -52,7 +69,12 @@ app.get('/api/audit-state', (req: Request, res: Response) => {
     const summary = auditTrail.getSummary();
     
     res.json({
-      state,
+      state: {
+        ...state,
+        chainId: summary.chainId,
+        chainName: summary.chainName,
+        contractAddress: summary.contractAddress,
+      },
       summary,
       timestamp: new Date().toISOString(),
     });
@@ -248,9 +270,16 @@ app.get('/api/stream', (req: Request, res: Response) => {
 
   // Send initial state
   const state = auditTrail.getState();
+  const summary = auditTrail.getSummary();
   res.write(`data: ${JSON.stringify({
     type: 'INIT',
-    state,
+    state: {
+      ...state,
+      chainId: summary.chainId,
+      chainName: summary.chainName,
+      contractAddress: summary.contractAddress,
+    },
+    summary,
     timestamp: new Date().toISOString(),
   })}\n\n`);
 
@@ -296,6 +325,7 @@ export function broadcastUpdate(data: Record<string, any>): void {
 function pollAuditTrail(): void {
   try {
     const state = auditTrail.getState();
+    const summary = auditTrail.getSummary();
     const latestEntry = state.entries[state.entries.length - 1];
     
     if (latestEntry && latestEntry.entryHash !== lastAuditChecksum) { // Use entryHash for robust change detection
@@ -305,7 +335,12 @@ function pollAuditTrail(): void {
         action: latestEntry.action,
         details: latestEntry.details,
         timestamp: latestEntry.timestamp,
-        summary: state.summary,
+        summary,
+        state: {
+          chainId: summary.chainId,
+          chainName: summary.chainName,
+          contractAddress: summary.contractAddress,
+        },
       });
     }
   } catch (error) {
@@ -332,9 +367,16 @@ wss.on('connection', (ws: WebSocket) => {
 
   // Send initial state
   const state = auditTrail.getState();
+  const summary = auditTrail.getSummary();
   const initMessage = JSON.stringify({
     type: 'INIT',
-    state,
+    state: {
+      ...state,
+      chainId: summary.chainId,
+      chainName: summary.chainName,
+      contractAddress: summary.contractAddress,
+    },
+    summary,
     timestamp: new Date().toISOString(),
   });
   ws.send(initMessage);
