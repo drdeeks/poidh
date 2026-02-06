@@ -336,37 +336,149 @@
                 switch (action) {
                     case 'BOUNTY_CREATED':
                         formatted += `Name: ${details.name}\n`;
-                        formatted += `Reward: ${details.rewardEth} ${details.nativeCurrency || ''}\n`;
+                        formatted += `Reward: ${details.rewardAmount || details.rewardEth} ${details.rewardCurrency || 'ETH'}\n`;
+                        formatted += `Chain: ${details.chainName || 'Unknown'}\n`;
                         if(details.onChainId) formatted += `On-Chain ID: ${details.onChainId}\n`;
                         break;
-                    case 'SUBMISSION_VALIDATED':
-                        formatted += `Bounty ID: ${details.bountyId}\n`;
-                        formatted += `Submitter: ${details.submitter}\n`;
-                        formatted += `Claim ID: ${details.claimId}\n`;
-                        formatted += `Status: ${details.isValid ? '✓ VALID' : '✗ INVALID'}\n`;
-                        formatted += `Score: ${details.validationScore}/100\n`;
-                        if (details.checks) {
-                            formatted += 'Checks:\n';
-                            details.checks.forEach(check => {
-                                formatted += `  ${check.passed ? '✓' : '✗'} ${check.name}: ${check.details}\n`;
+                    case 'BOUNTIES_AUTO_INDEXED':
+                        formatted += `┌─ BOUNTY AUTO-INDEXING ─────────────────────────\n`;
+                        formatted += `│ Bot Wallet: ${details.botWalletAddress}\n`;
+                        formatted += `│ Chain: ${details.chainName} (ID: ${details.chainId})\n`;
+                        formatted += `│ Native Currency: ${details.nativeCurrency}\n`;
+                        formatted += `│ Bounties Scanned: ${details.totalBountiesScanned}\n`;
+                        formatted += `│ Bot Bounties Found: ${details.botBountiesFound}\n`;
+                        formatted += `│\n`;
+                        formatted += `│ FILTER CRITERIA:\n`;
+                        formatted += `│   ${details.filterCriteria}\n`;
+                        formatted += `│\n`;
+                        formatted += `│ VERIFICATION LOGIC:\n`;
+                        if (details.verificationLogic) {
+                            details.verificationLogic.forEach(step => {
+                                formatted += `│   ${step}\n`;
                             });
                         }
+                        if (details.discoveredBounties && details.discoveredBounties.length > 0) {
+                            formatted += `│\n`;
+                            formatted += `│ DISCOVERED BOUNTIES:\n`;
+                            details.discoveredBounties.forEach(bounty => {
+                                formatted += `│   #${bounty.id}: ${bounty.name}\n`;
+                                formatted += `│      Reward: ${bounty.rewardAmount} ${bounty.rewardCurrency}\n`;
+                            });
+                        }
+                        formatted += `└────────────────────────────────────────────────\n`;
+                        break;
+                    case 'SUBMISSION_VALIDATED':
+                        formatted += `┌─ SUBMISSION VALIDATION ────────────────────────\n`;
+                        formatted += `│ Bounty ID: ${details.bountyId}\n`;
+                        formatted += `│ Submitter: ${details.submitter}\n`;
+                        formatted += `│ Claim ID: ${details.claimId}\n`;
+                        formatted += `│ Status: ${details.isValid ? '✓ VALID' : '✗ INVALID'}\n`;
+                        formatted += `│ Score: ${details.validationScore}/100 (Threshold: ${details.passingThreshold || 50})\n`;
+                        if (details.aiScore !== undefined) {
+                            formatted += `│ AI Score: ${details.aiScore}/100\n`;
+                            formatted += `│ AI Confidence: ${(details.aiConfidence * 100).toFixed(0)}%\n`;
+                        }
+                        formatted += `│\n`;
+                        formatted += `│ VALIDATION CHECKS:\n`;
+                        if (details.validationChecks && details.validationChecks.length > 0) {
+                            details.validationChecks.forEach(check => {
+                                formatted += `│   ${check.passed ? '✓' : '✗'} ${check.checkName || check.name}: ${check.details || check.reasoning}\n`;
+                            });
+                        } else if (details.checks) {
+                            details.checks.forEach(check => {
+                                formatted += `│   ${check.passed ? '✓' : '✗'} ${check.name}: ${check.details}\n`;
+                            });
+                        }
+                        if (details.decisionReason) {
+                            formatted += `│\n`;
+                            formatted += `│ DECISION: ${details.decisionReason}\n`;
+                        }
+                        if (details.aiReasoning) {
+                            formatted += `│\n`;
+                            formatted += `│ AI REASONING: ${details.aiReasoning.substring(0, 200)}...\n`;
+                        }
+                        formatted += `└────────────────────────────────────────────────\n`;
+                        break;
+                    case 'SUBMISSION_REJECTED':
+                        formatted += `┌─ SUBMISSION REJECTED ──────────────────────────\n`;
+                        formatted += `│ Bounty ID: ${details.bountyId}\n`;
+                        formatted += `│ Submitter: ${details.submitter}\n`;
+                        formatted += `│ Claim ID: ${details.claimId}\n`;
+                        formatted += `│ Validation Score: ${details.validationScore || 'N/A'}/100\n`;
+                        formatted += `│\n`;
+                        formatted += `│ REJECTION REASON:\n`;
+                        formatted += `│   ${details.reason}\n`;
+                        if (details.failedChecks && details.failedChecks.length > 0) {
+                            formatted += `│\n`;
+                            formatted += `│ FAILED CHECKS (Why Rejected):\n`;
+                            details.failedChecks.forEach(check => {
+                                formatted += `│   ✗ ${check.name}: ${check.details}\n`;
+                            });
+                        }
+                        if (details.passedChecks && details.passedChecks.length > 0) {
+                            formatted += `│\n`;
+                            formatted += `│ PASSED CHECKS:\n`;
+                            details.passedChecks.forEach(check => {
+                                formatted += `│   ✓ ${check.name}: ${check.details}\n`;
+                            });
+                        }
+                        formatted += `│\n`;
+                        formatted += `│ VERIFICATION METHOD:\n`;
+                        formatted += `│   Validation engine evaluated submission against bounty criteria.\n`;
+                        formatted += `│   Score did not meet minimum threshold of 50/100.\n`;
+                        formatted += `└────────────────────────────────────────────────\n`;
                         break;
                     case 'WINNER_RATIONALE':
-                        formatted += `Bounty: ${details.bountyName} (${details.bountyId})\n`;
-                        formatted += `Winner: ${details.winner.address}\n`;
-                        formatted += `Decision: ${details.decisionSummary}\n`;
+                        formatted += `┌─ WINNER SELECTION RATIONALE ───────────────────\n`;
+                        formatted += `│ Bounty: ${details.bountyName} (${details.bountyId})\n`;
+                        formatted += `│ Selection Mode: ${details.selectionMode === 'first_valid' ? 'First Valid Submission' : 'AI Judged'}\n`;
+                        formatted += `│ Winner: ${details.winner?.address || 'Unknown'}\n`;
+                        formatted += `│ Claim ID: ${details.winner?.claimId || 'Unknown'}\n`;
+                        formatted += `│ Competitors: ${details.competitorCount || 0}\n`;
+                        formatted += `│\n`;
+                        formatted += `│ VALIDATION CHECKS:\n`;
                         if (details.validationChecks) {
-                            formatted += 'Checks:\n';
                             details.validationChecks.forEach(check => {
-                                formatted += `  ${check.passed ? '✓' : '✗'} ${check.name}: ${check.details}\n`;
+                                formatted += `│   ${check.passed ? '✓' : '✗'} ${check.name}: ${check.details}\n`;
                             });
                         }
                         if (details.aiEvaluation) {
-                            formatted += 'AI Evaluation:\n';
-                            formatted += `  Score: ${details.aiEvaluation.score}/100\n`;
-                            formatted += `  Reasoning: ${details.aiEvaluation.reasoning}\n`;
+                            formatted += `│\n`;
+                            formatted += `│ AI EVALUATION (${details.aiEvaluation.model || 'GPT-4'}):\n`;
+                            formatted += `│   Score: ${details.aiEvaluation.score}/100\n`;
+                            formatted += `│   Confidence: ${(details.aiEvaluation.confidence * 100).toFixed(0)}%\n`;
+                            formatted += `│   Reasoning: ${details.aiEvaluation.reasoning?.substring(0, 150) || 'N/A'}...\n`;
                         }
+                        if (details.competitorsSummary && details.competitorsSummary.length > 0) {
+                            formatted += `│\n`;
+                            formatted += `│ OTHER SUBMISSIONS:\n`;
+                            details.competitorsSummary.slice(0, 5).forEach(comp => {
+                                formatted += `│   ${comp.address.slice(0, 10)}... - ${comp.status}${comp.score ? ` (score: ${comp.score})` : ''}${comp.reason ? ` - ${comp.reason}` : ''}\n`;
+                            });
+                        }
+                        formatted += `│\n`;
+                        formatted += `│ FINAL DECISION:\n`;
+                        formatted += `│   ${details.decisionSummary}\n`;
+                        formatted += `└────────────────────────────────────────────────\n`;
+                        break;
+                    case 'PAYOUT_CONFIRMED':
+                        formatted += `┌─ PAYOUT CONFIRMED ─────────────────────────────\n`;
+                        formatted += `│ Bounty: ${details.bountyName || details.bountyId}\n`;
+                        formatted += `│ Winner: ${details.winner}\n`;
+                        formatted += `│ Reward: ${details.rewardAmount || details.rewardEth} ${details.rewardCurrency || 'ETH'}\n`;
+                        formatted += `│ Chain: ${details.chainName || 'Unknown'}\n`;
+                        formatted += `│ TX Hash: ${details.transactionHash}\n`;
+                        formatted += `│\n`;
+                        formatted += `│ VALIDATION SUMMARY:\n`;
+                        formatted += `│   Score: ${details.validationScore || 'N/A'}/100\n`;
+                        if (details.aiScore) {
+                            formatted += `│   AI Score: ${details.aiScore}/100\n`;
+                        }
+                        formatted += `│   Selection Mode: ${details.selectionMode || 'Unknown'}\n`;
+                        formatted += `│\n`;
+                        formatted += `│ STATUS: ${details.status || 'completed'}\n`;
+                        formatted += `│ ${details.finalStep || 'Payment released to winner on-chain'}\n`;
+                        formatted += `└────────────────────────────────────────────────\n`;
                         break;
                     default:
                         for (const [key, value] of Object.entries(details)) {

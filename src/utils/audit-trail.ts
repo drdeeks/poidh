@@ -32,6 +32,7 @@ export type AuditAction =
   | 'AGENT_STARTED'
   | 'AGENT_STOPPED'
   | 'BOUNTY_CREATED'
+  | 'BOUNTIES_AUTO_INDEXED'
   | 'SUBMISSION_RECEIVED'
   | 'SUBMISSION_VALIDATED'
   | 'SUBMISSION_REJECTED'
@@ -281,8 +282,38 @@ class AuditTrail {
       switch (entry.action) {
         case 'BOUNTY_CREATED':
           lines.push(`       Bounty: ${entry.details.name}`);
-          lines.push(`       Reward: ${entry.details.rewardEth} ETH`);
+          lines.push(`       Reward: ${entry.details.rewardAmount || entry.details.rewardEth} ${entry.details.rewardCurrency || 'ETH'}`);
+          lines.push(`       Chain: ${entry.details.chainName || 'Unknown'}`);
           lines.push(`       On-Chain ID: ${entry.details.onChainId}`);
+          break;
+        case 'BOUNTIES_AUTO_INDEXED':
+          lines.push(`       ┌${'─'.repeat(70)}`);
+          lines.push(`       │ BOUNTY AUTO-INDEXING RESULT`);
+          lines.push(`       ├${'─'.repeat(70)}`);
+          lines.push(`       │ Bot Wallet: ${entry.details.botWalletAddress}`);
+          lines.push(`       │ Chain: ${entry.details.chainName} (ID: ${entry.details.chainId})`);
+          lines.push(`       │ Native Currency: ${entry.details.nativeCurrency}`);
+          lines.push(`       │ Total Bounties Scanned: ${entry.details.totalBountiesScanned}`);
+          lines.push(`       │ Bot Bounties Found: ${entry.details.botBountiesFound}`);
+          lines.push(`       │`);
+          lines.push(`       │ FILTER CRITERIA:`);
+          lines.push(`       │   ${entry.details.filterCriteria}`);
+          lines.push(`       │`);
+          lines.push(`       │ VERIFICATION LOGIC:`);
+          if (entry.details.verificationLogic) {
+            for (const step of entry.details.verificationLogic) {
+              lines.push(`       │   ${step}`);
+            }
+          }
+          if (entry.details.discoveredBounties && entry.details.discoveredBounties.length > 0) {
+            lines.push(`       │`);
+            lines.push(`       │ DISCOVERED BOUNTIES:`);
+            for (const bounty of entry.details.discoveredBounties) {
+              lines.push(`       │   #${bounty.id}: ${bounty.name}`);
+              lines.push(`       │      Reward: ${bounty.rewardAmount} ${bounty.rewardCurrency}`);
+            }
+          }
+          lines.push(`       └${'─'.repeat(70)}`);
           break;
         case 'SUBMISSION_RECEIVED':
           lines.push(`       Bounty: ${entry.details.bountyId}`);

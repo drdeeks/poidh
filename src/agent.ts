@@ -188,6 +188,7 @@ export class AutonomousBountyAgent {
 
   /**
    * Auto-discover and monitor all bounties created by this bot
+   * Dynamically fetches chain name, reward type, and reward amount from on-chain data
    */
   async monitorOwnBounties(): Promise<void> {
     log.info('🔍 Auto-discovering bounties created by this bot...');
@@ -195,15 +196,39 @@ export class AutonomousBountyAgent {
     const botAddress = await walletManager.getAddress();
     const allBounties = await poidhContract.getBounties(0);
     
+    // Get dynamic chain information
+    const chainId = config.chainId;
+    const chainName = this.getChainName(chainId);
+    const nativeCurrency = this.getNativeCurrency(chainId);
+    
+    log.info(`📋 Indexing bounties on ${chainName} (Chain ID: ${chainId})`);
+    log.info(`💰 Native currency: ${nativeCurrency}`);
+    log.info(`🔑 Bot wallet address: ${botAddress}`);
+    
     let foundCount = 0;
+    const discoveredBounties: Array<{
+      id: string;
+      name: string;
+      rewardAmount: string;
+      rewardCurrency: string;
+      chainName: string;
+    }> = [];
+    
     for (const bounty of allBounties) {
       // Only monitor bounties created by this bot that are still active
       if (bounty.issuer.toLowerCase() === botAddress.toLowerCase() && 
           poidhContract.isBountyActive(bounty)) {
         
-        log.info(`✅ Found bot bounty #${bounty.id}: ${bounty.name}`);
+        // Dynamically extract reward amount from on-chain data
+        const { formatEther } = require('ethers');
+        const rewardAmount = formatEther(bounty.amount);
         
-        // Register for monitoring
+        log.info(`✅ Found bot bounty #${bounty.id}: ${bounty.name}`);
+        log.info(`   💵 Reward: ${rewardAmount} ${nativeCurrency}`);
+        log.info(`   🔗 Chain: ${chainName}`);
+        log.info(`   📝 Creator: ${bounty.issuer}`);
+        
+        // Register for monitoring with dynamically fetched data
         bountyManager.registerExistingBounty({
           id: `auto-${bounty.id}`,
           name: bounty.name,
@@ -211,17 +236,49 @@ export class AutonomousBountyAgent {
           requirements: 'Auto-discovered bounty',
           proofType: 'photo' as any,
           selectionMode: SelectionMode.FIRST_VALID,
-          rewardEth: require('ethers').formatEther(bounty.amount),
+          rewardEth: rewardAmount,
           deadline: Math.floor(Date.now() / 1000) + 86400, // 24h from now
           validation: {},
-          tags: ['auto-discovered'],
+          tags: ['auto-discovered', `chain:${chainName}`, `currency:${nativeCurrency}`],
         }, bounty.id.toString());
+        
+        // Track discovered bounties for audit
+        discoveredBounties.push({
+          id: bounty.id.toString(),
+          name: bounty.name,
+          rewardAmount,
+          rewardCurrency: nativeCurrency,
+          chainName,
+        });
         
         foundCount++;
       }
     }
     
-    log.info(`🎯 Monitoring ${foundCount} active bounties created by this bot`);
+    // Log comprehensive auto-discovery to audit trail
+    auditTrail.log('BOUNTIES_AUTO_INDEXED', {
+      botWalletAddress: botAddress,
+      chainId,
+      chainName,
+      nativeCurrency,
+      totalBountiesScanned: allBounties.length,
+      botBountiesFound: foundCount,
+      filterCriteria: `issuer.toLowerCase() === "${botAddress.toLowerCase()}" && isActive`,
+      discoveredBounties: discoveredBounties,
+      indexedAt: new Date().toISOString(),
+      method: 'monitorOwnBounties',
+      verificationLogic: [
+        '1. Fetch all bounties from POIDH contract via getBounties(0)',
+        '2. Filter by issuer address matching bot wallet address (case-insensitive)',
+        '3. Check bounty is still active (not claimed/cancelled)',
+        '4. Dynamically extract reward amount using ethers.formatEther(bounty.amount)',
+        '5. Get native currency from chain configuration',
+        '6. Register each matching bounty for monitoring',
+      ],
+    });
+    
+    log.info(`🎯 Monitoring ${foundCount} active bounties created by this bot on ${chainName}`);
+    log.info(`📊 Total bounties scanned: ${allBounties.length}`);
   }
 
   /**

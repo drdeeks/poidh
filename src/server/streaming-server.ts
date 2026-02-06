@@ -108,6 +108,136 @@ app.get('/api/winners', (req: Request, res: Response) => {
 });
 
 /**
+ * Get rejected submissions with detailed reasoning
+ */
+app.get('/api/rejections', (req: Request, res: Response) => {
+  try {
+    const state = auditTrail.getState();
+    const rejections = state.entries
+      .filter(e => e.action === 'SUBMISSION_REJECTED')
+      .map(e => ({
+        sequence: e.sequence,
+        timestamp: new Date(e.timestamp).toISOString(),
+        action: e.action,
+        bountyId: e.details.bountyId,
+        submitter: e.details.submitter,
+        claimId: e.details.claimId,
+        validationScore: e.details.validationScore,
+        reason: e.details.reason,
+        failedChecks: e.details.failedChecks || [],
+        passedChecks: e.details.passedChecks || [],
+        verificationMethod: 'Validation engine evaluated submission against bounty criteria',
+        entryHash: e.entryHash,
+      }))
+      .reverse();
+    
+    res.json({
+      rejections,
+      total: rejections.length,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: msg });
+  }
+});
+
+/**
+ * Get validation decisions (both accepted and rejected) with full reasoning
+ */
+app.get('/api/decisions', (req: Request, res: Response) => {
+  try {
+    const state = auditTrail.getState();
+    const decisions = state.entries
+      .filter(e => e.action === 'SUBMISSION_VALIDATED' || e.action === 'SUBMISSION_REJECTED')
+      .map(e => {
+        const isValidated = e.action === 'SUBMISSION_VALIDATED';
+        return {
+          sequence: e.sequence,
+          timestamp: new Date(e.timestamp).toISOString(),
+          action: e.action,
+          decision: isValidated ? (e.details.isValid ? 'ACCEPTED' : 'REJECTED') : 'REJECTED',
+          bountyId: e.details.bountyId,
+          bountyName: e.details.bountyName,
+          submitter: e.details.submitter,
+          claimId: e.details.claimId,
+          validationScore: e.details.validationScore,
+          passingThreshold: e.details.passingThreshold || 50,
+          
+          // Reasoning and logic
+          reason: e.details.reason || e.details.decisionReason,
+          rationale: e.details.decisionRationale,
+          
+          // Detailed checks
+          validationChecks: e.details.validationChecks || [],
+          failedChecks: e.details.failedChecks || [],
+          passedChecks: e.details.passedChecks || [],
+          
+          // AI evaluation if applicable
+          aiScore: e.details.aiScore,
+          aiConfidence: e.details.aiConfidence,
+          aiReasoning: e.details.aiReasoning,
+          aiModel: e.details.aiModel,
+          
+          // Verification info
+          verificationMethod: isValidated 
+            ? `Score ${e.details.validationScore}/100 evaluated against threshold ${e.details.passingThreshold || 50}`
+            : 'Validation engine evaluated submission - failed to meet criteria',
+          
+          entryHash: e.entryHash,
+        };
+      })
+      .reverse();
+    
+    res.json({
+      decisions,
+      total: decisions.length,
+      accepted: decisions.filter(d => d.decision === 'ACCEPTED').length,
+      rejected: decisions.filter(d => d.decision === 'REJECTED').length,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: msg });
+  }
+});
+
+/**
+ * Get auto-indexed bounties
+ */
+app.get('/api/indexed-bounties', (req: Request, res: Response) => {
+  try {
+    const state = auditTrail.getState();
+    const indexed = state.entries
+      .filter(e => e.action === 'BOUNTIES_AUTO_INDEXED')
+      .map(e => ({
+        sequence: e.sequence,
+        timestamp: new Date(e.timestamp).toISOString(),
+        botWalletAddress: e.details.botWalletAddress,
+        chainId: e.details.chainId,
+        chainName: e.details.chainName,
+        nativeCurrency: e.details.nativeCurrency,
+        totalBountiesScanned: e.details.totalBountiesScanned,
+        botBountiesFound: e.details.botBountiesFound,
+        filterCriteria: e.details.filterCriteria,
+        verificationLogic: e.details.verificationLogic,
+        discoveredBounties: e.details.discoveredBounties,
+        entryHash: e.entryHash,
+      }))
+      .reverse();
+    
+    res.json({
+      indexed,
+      total: indexed.length,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: msg });
+  }
+});
+
+/**
  * Server-Sent Events (SSE) endpoint for streaming
  */
 app.get('/api/stream', (req: Request, res: Response) => {
@@ -231,11 +361,14 @@ server.listen(PORT, () => {
   log.info(`║ WebSocket: ws://localhost:${PORT}`);
   log.info(`║ SSE Stream: http://localhost:${PORT}/api/stream`);
   log.info(`║ API Endpoints:`);
-  log.info(`║   GET /health - Health check`);
-  log.info(`║   GET /api/audit-state - Full audit state`);
+  log.info(`║   GET /health            - Health check`);
+  log.info(`║   GET /api/audit-state   - Full audit state`);
   log.info(`║   GET /api/recent-entries - Recent activity`);
-  log.info(`║   GET /api/winners - Winner details`);
-  log.info(`║   GET /api/stream - Server-Sent Events stream`);
+  log.info(`║   GET /api/winners       - Winner details with rationale`);
+  log.info(`║   GET /api/rejections    - Rejected submissions with reasons`);
+  log.info(`║   GET /api/decisions     - All validation decisions (accept/reject)`);
+  log.info(`║   GET /api/indexed-bounties - Auto-indexed bounties`);
+  log.info(`║   GET /api/stream        - Server-Sent Events stream`);
   log.info(`╠════════════════════════════════════════════════════════════════╣`);
   log.info(`║ Bot Activity is streaming in real-time`);
   log.info(`╚════════════════════════════════════════════════════════════════╝\n`);
