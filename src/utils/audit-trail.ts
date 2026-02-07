@@ -285,6 +285,11 @@ class AuditTrail {
           lines.push(`       Reward: ${entry.details.rewardAmount || entry.details.rewardEth} ${entry.details.rewardCurrency || 'ETH'}`);
           lines.push(`       Chain: ${entry.details.chainName || 'Unknown'}`);
           lines.push(`       On-Chain ID: ${entry.details.onChainId}`);
+          lines.push(`       Selection Mode: ${entry.details.selectionMode === 'first_valid' ? 'First Valid Submission' : entry.details.selectionMode === 'ai_judged' ? 'AI Judged' : entry.details.selectionMode || 'Unknown'}`);
+          if (entry.details.aiJudgingCriteria) {
+            lines.push(`       AI Judging Criteria: ${entry.details.aiJudgingCriteria}`);
+            lines.push(`       AI Model: ${entry.details.aiModel || 'gpt-4o'}`);
+          }
           break;
         case 'BOUNTIES_AUTO_INDEXED':
           lines.push(`       ┌${'─'.repeat(70)}`);
@@ -390,6 +395,40 @@ class AuditTrail {
           if (entry.details.formula) {
             lines.push(`       │`);
             lines.push(`       │ FORMULA: ${entry.details.formula}`);
+          }
+          lines.push(`       └${'─'.repeat(70)}`);
+          break;
+        case 'AI_EVALUATION_STARTED':
+          lines.push(`       ┌${'─'.repeat(70)}`);
+          lines.push(`       │ AI EVALUATION STARTED`);
+          lines.push(`       ├${'─'.repeat(70)}`);
+          lines.push(`       │ Bounty: ${entry.details.bountyName || entry.details.bountyId}`);
+          lines.push(`       │ Model: ${entry.details.model || 'gpt-4o'}`);
+          lines.push(`       │ Submissions to Evaluate: ${entry.details.submissionCount}`);
+          lines.push(`       │ Selection Mode: AI Judged`);
+          if (entry.details.aiValidationPrompt) {
+            lines.push(`       │ Judging Criteria: ${entry.details.aiValidationPrompt.substring(0, 200)}`);
+          }
+          lines.push(`       └${'─'.repeat(70)}`);
+          break;
+        case 'AI_EVALUATION_COMPLETED':
+          lines.push(`       ┌${'─'.repeat(70)}`);
+          lines.push(`       │ AI EVALUATION COMPLETED`);
+          lines.push(`       ├${'─'.repeat(70)}`);
+          lines.push(`       │ Bounty: ${entry.details.bountyName || entry.details.bountyId}`);
+          lines.push(`       │ Model: ${entry.details.model || 'gpt-4o'}`);
+          lines.push(`       │ Total Evaluated: ${entry.details.totalEvaluated}`);
+          lines.push(`       │ Valid: ${entry.details.validCount} | Invalid: ${entry.details.invalidCount}`);
+          if (entry.details.topScore !== undefined) {
+            lines.push(`       │ Top Score: ${entry.details.topScore}/100 (${entry.details.topSubmitter})`);
+          }
+          if (entry.details.scores && entry.details.scores.length > 0) {
+            lines.push(`       │`);
+            lines.push(`       │ ALL SCORES:`);
+            for (const s of entry.details.scores) {
+              const icon = s.isValid ? '✓' : '✗';
+              lines.push(`       │   ${icon} ${s.submitter.slice(0, 10)}... Score: ${s.score}/100 (Confidence: ${(s.confidence * 100).toFixed(0)}%)`);
+            }
           }
           lines.push(`       └${'─'.repeat(70)}`);
           break;

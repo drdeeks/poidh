@@ -175,6 +175,10 @@ export class AutonomousBountyAgent {
       proofType: bountyConfig.proofType,
       deadline: new Date(bountyConfig.deadline * 1000).toISOString(),
       validationCriteria: bountyConfig.validation,
+      ...(bountyConfig.selectionMode === SelectionMode.AI_JUDGED && {
+        aiJudgingCriteria: bountyConfig.validation.aiValidationPrompt || 'Default GPT-4 Vision evaluation',
+        aiModel: config.openaiVisionModel || 'gpt-4o',
+      }),
       createdBy: config.botPrivateKey.substring(0, 42),
     }, bounty.createTxHash);
 

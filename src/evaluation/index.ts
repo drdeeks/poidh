@@ -8,6 +8,7 @@ import {
 import { submissionValidator } from './validator';
 import { aiJudge } from './ai-judge';
 import { log } from '../utils/logger';
+import { auditTrail } from '../utils/audit-trail';
 
 export class EvaluationEngine {
   async evaluateForFirstValid(
@@ -78,8 +79,53 @@ export class EvaluationEngine {
       submissionCount: submissions.length,
     });
 
+    auditTrail.log('AI_EVALUATION_STARTED', {
+      bountyId: bounty.config.id,
+      bountyName: bounty.config.name,
+      submissionCount: submissions.length,
+      model: aiJudge['model'],
+      selectionMode: SelectionMode.AI_JUDGED,
+      aiValidationPrompt: bounty.config.validation.aiValidationPrompt || 'Default evaluation prompt',
+    });
+
     const ranked = await aiJudge.evaluateAndRank(submissions, bounty.config);
     const validRanked = ranked.filter((r) => r.evaluation.isValid);
+
+    for (const entry of ranked) {
+      auditTrail.log('SCORING_BREAKDOWN', {
+        bountyId: bounty.config.id,
+        phase: 'AI Judged Evaluation',
+        submitter: entry.submission.submitter,
+        claimId: entry.submission.claimId,
+        finalScore: entry.evaluation.score,
+        isValid: entry.evaluation.isValid,
+        confidence: entry.evaluation.confidence,
+        componentScores: {
+          'AI Score': entry.evaluation.score + '/100',
+          'Confidence': ((entry.evaluation.confidence * 100).toFixed(0)) + '%',
+          'Valid': entry.evaluation.isValid ? 'Yes' : 'No',
+        },
+        formula: 'GPT-4 Vision evaluation with structured scoring prompt',
+        reasoning: entry.evaluation.reasoning?.substring(0, 300),
+      });
+    }
+
+    auditTrail.log('AI_EVALUATION_COMPLETED', {
+      bountyId: bounty.config.id,
+      bountyName: bounty.config.name,
+      model: aiJudge['model'],
+      totalEvaluated: ranked.length,
+      validCount: validRanked.length,
+      invalidCount: ranked.length - validRanked.length,
+      topScore: ranked[0]?.evaluation.score,
+      topSubmitter: ranked[0]?.submission.submitter,
+      scores: ranked.map(r => ({
+        submitter: r.submission.submitter,
+        score: r.evaluation.score,
+        isValid: r.evaluation.isValid,
+        confidence: r.evaluation.confidence,
+      })),
+    });
 
     if (validRanked.length === 0) {
       log.warn('No valid submissions found', { bountyId: bounty.config.id });

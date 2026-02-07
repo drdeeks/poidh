@@ -101,7 +101,45 @@ TX Hash:   0xdef789ghi012345...
 
 ---
 
-## Scoring Rubric
+## AI-Judged Bounties
+
+For `AI_JUDGED` bounties, the bot collects all submissions until the deadline expires, then uses **GPT-4 Vision** to evaluate and rank them autonomously.
+
+### How It Works
+
+1. **Image Retrieval** — The bot fetches each submission's image (converting IPFS URIs to HTTP gateways as needed).
+2. **GPT-4 Vision Evaluation** — Each submission is sent to `gpt-4o` (temperature `0.3` for consistency) with a structured prompt containing the bounty name, description, and requirements.
+3. **AI Detection** — The model checks for signs of AI generation (artifacts, impossible lighting, anatomical errors). If detected, the submission is marked **INVALID** with score `0`.
+4. **Structured Scoring** — The model returns a JSON response with `score` (0–100), `isValid`, `confidence` (0–1), `reasoning`, per-criteria breakdown, and authenticity assessment.
+5. **Ranking & Selection** — All submissions are ranked by score. The highest-scoring valid submission wins. Runner-up scores are logged.
+6. **Payout** — The bot triggers on-chain payment to the winner automatically.
+
+**Proof:**
+```
+📋 AUDIT LOG #0005
+Timestamp: 2024-01-15T12:00:05.000Z
+Action:    AI_JUDGED_WINNER_SELECTED
+
+Bounty ID:     88
+Model:         gpt-4o
+Winner:        0xabcd1234...
+Score:         92/100
+Confidence:    96%
+Competitors:   3 valid submissions
+Runner-ups:    78, 71, 65
+
+AI Reasoning:  "Submission demonstrates clear real-world photography
+               with natural lighting and consistent EXIF metadata.
+               Highest creativity and execution among all entries."
+
+🔗 Payout TX: https://basescan.org/tx/0x987654abc...
+```
+
+**How to verify:** The AI's score, confidence, reasoning, and competitor scores are all logged in the audit trail. The payout TX is verifiable on-chain.
+
+---
+
+## Scoring Rubric (First Valid Bounties)
 
 The bot scores every submission using these 8 checks:
 
@@ -179,7 +217,7 @@ console.log(valid ? '✓ Audit trail intact' : '✗ Audit trail tampered');
 |------|--------|-------|
 | 1 | Bot created bounty | TX hash on blockchain |
 | 2 | Bot detected submission | Claim logged with timestamp |
-| 3 | Bot validated & scored | 8 checks logged with reasoning |
+| 3 | Bot validated & scored | 8 checks logged with reasoning (first valid) or GPT-4 Vision evaluation logged with score, confidence, and reasoning (AI judged) |
 | 4 | Bot paid winner | TX hash on blockchain |
 
 **No human clicked anything. 100% autonomous.**
