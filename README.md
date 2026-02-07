@@ -36,7 +36,7 @@ Every action is recorded in a cryptographic audit trail (SHA-256 hash chain) for
 ### Setup
 
 ```bash
-git clone https://github.com/drdeeks/poidh.git
+git clone https://github.com/drdeeks/poidh.git poidh-autonomous
 cd poidh-autonomous
 npm install
 ```
@@ -326,17 +326,24 @@ Flags: `--chain <name>` (base, arbitrum, degen) and `--reward <amount>` (in nati
 
 ### Docker
 
+The `docker-compose.yml` runs two services: `bounty-bot` (continuous bounty loop) and `streaming-server` (dashboard on port 3001). Both share the `logs/` and `data/` volumes.
+
 ```bash
 docker-compose up -d --build
+# Dashboard at http://localhost:3001
+# View logs: docker-compose logs -f
 ```
-
-The `docker-compose.yml` includes the streaming server on port 3001.
 
 ### PM2
 
+The `ecosystem.config.js` runs two processes: the bounty bot (`bounty-bot`) and the streaming dashboard (`streaming-server`).
+
 ```bash
 npm install -g pm2
+npm run build
 pm2 start ecosystem.config.js
+pm2 logs        # view logs
+pm2 monit       # monitor resources
 ```
 
 ### Cloud
@@ -353,7 +360,7 @@ All configuration is via environment variables. See `.env.example` for the full 
 
 | Variable | Description |
 | :--- | :--- |
-| `BOT_PRIVATE_KEY` | Bot wallet private key (hex, starts with `0x`) |
+| `BOT_PRIVATE_KEY` (or `PRIVATE_KEY`) | Bot wallet private key (hex, starts with `0x`) |
 | `RPC_URL` | Blockchain RPC endpoint |
 
 ### Key Optional Variables
