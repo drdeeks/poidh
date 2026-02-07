@@ -19,6 +19,7 @@ import axios from 'axios';
  */
 export class POIDHContract {
   private contract: Contract | null = null;
+  private votingPeriodSeconds: number = POIDH_CONSTANTS.VOTING_PERIOD;
 
   /**
    * Initialize contract instance
@@ -54,6 +55,20 @@ export class POIDHContract {
       });
     } catch (error) {
       log.warn('Could not fetch contract constants', { error: (error as Error).message });
+    }
+
+    // Fetch voting period from contract (may differ per deployment)
+    try {
+      const period = await this.contract.votingPeriod();
+      this.votingPeriodSeconds = Number(period);
+      log.info('Voting period fetched from contract', {
+        votingPeriodSeconds: this.votingPeriodSeconds,
+      });
+    } catch (error) {
+      log.warn('Could not fetch voting period, using default', {
+        default: POIDH_CONSTANTS.VOTING_PERIOD,
+        error: (error as Error).message,
+      });
     }
   }
 
@@ -544,9 +559,7 @@ export class POIDHContract {
     claimName: string
   ): Promise<string | null> {
     try {
-      const baseUrl = config.chainId === 8453
-        ? 'https://base.blockscout.com'
-        : 'https://base-sepolia.blockscout.com';
+      const baseUrl = this.getBlockscoutApiUrl(config.chainId);
 
       // Get transactions from the claimer to the POIDH contract
       const response = await axios.get(
@@ -748,10 +761,27 @@ export class POIDHContract {
   }
 
   /**
-   * Get voting period in seconds
+   * Get voting period in seconds (fetched from contract, with fallback)
    */
   getVotingPeriodSeconds(): number {
-    return POIDH_CONSTANTS.VOTING_PERIOD;
+    return this.votingPeriodSeconds;
+  }
+
+  /**
+   * Get Blockscout API URL for a given chain ID
+   */
+  private getBlockscoutApiUrl(chainId: number): string {
+    const urls: Record<number, string> = {
+      8453: 'https://base.blockscout.com',
+      84532: 'https://base-sepolia.blockscout.com',
+      42161: 'https://arbitrum.blockscout.com',
+      421614: 'https://sepolia.arbiscan.io',
+      666666666: 'https://explorer.degen.tips',
+      1: 'https://eth.blockscout.com',
+      10: 'https://optimism.blockscout.com',
+      137: 'https://polygon.blockscout.com',
+    };
+    return urls[chainId] || urls[8453];
   }
 
   /**

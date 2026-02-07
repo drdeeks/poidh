@@ -39,13 +39,13 @@ export class MockPOIDHContract {
 
   /**
    * Create a mock solo bounty
-   * Note: Parameter order matches the agent interface (name, desc, amount, deadline)
+   * Note: Parameter order matches the real contract interface (name, desc, deadline, amount)
    */
   async createSoloBounty(
     name: string,
     description: string,
-    amountEth: string,
-    _deadlineTimestamp: number // Deadline is embedded in description
+    _deadlineTimestamp: number,
+    amountEth: string
   ): Promise<{ bountyId: string; txHash: string }> {
     this.bountyCounter++;
     const bountyId = String(this.bountyCounter);
@@ -74,13 +74,13 @@ export class MockPOIDHContract {
 
   /**
    * Create a mock open bounty
-   * Note: Parameter order matches the agent interface (name, desc, amount, deadline)
+   * Note: Parameter order matches the real contract interface (name, desc, deadline, amount)
    */
   async createOpenBounty(
     name: string,
     description: string,
-    amountEth: string,
-    _deadlineTimestamp: number // Deadline is embedded in description
+    _deadlineTimestamp: number,
+    amountEth: string
   ): Promise<{ bountyId: string; txHash: string }> {
     this.bountyCounter++;
     const bountyId = String(this.bountyCounter);

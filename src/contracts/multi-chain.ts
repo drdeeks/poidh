@@ -3,7 +3,7 @@
  * Manages contract interactions across multiple EVM chains
  */
 
-import { Contract } from 'ethers';
+import { Contract, parseEther } from 'ethers';
 import { POIDH_V3_ABI } from './abis';
 import { getChainConfig, getPoidhContractAddress } from '../config/chains';
 import { getMultiChainWalletManager } from '../wallet/multi-chain';
@@ -50,7 +50,11 @@ export class MultiChainContractManager {
    * Initialize contracts on all enabled chains
    */
   async initializeAllChains(): Promise<Contract[]> {
-    const chainIds = this.walletManager.getInitializedChains();
+    let chainIds = this.walletManager.getInitializedChains();
+    if (chainIds.length === 0) {
+      await this.walletManager.initializeAllChains();
+      chainIds = this.walletManager.getInitializedChains();
+    }
     const results: Contract[] = [];
 
     for (const chainId of chainIds) {
@@ -142,21 +146,19 @@ export class MultiChainContractManager {
           amount: amountEth,
         });
 
-        // Note: This assumes the POIDHContract.createSoloBounty implementation
-        // You'll need to adapt this based on your actual contract interface
         const tx = await contract.createSoloBounty(
           name,
           description,
-          deadlineTimestamp,
-          amountEth
+          { value: parseEther(amountEth) }
         );
 
         const receipt = await tx.wait();
         const txHash = tx.hash;
 
-        // Extract bounty ID from transaction logs (this is contract-specific)
-        // For now, we'll use a placeholder
-        const bountyId = `${chainId}-${txHash.slice(0, 10)}`;
+        const event = receipt.logs.find(
+          (log: any) => log.fragment?.name === 'BountyCreated'
+        );
+        const bountyId = event?.args?.[0]?.toString() || '0';
 
         results.push({ chainId, txHash, bountyId });
 
@@ -186,9 +188,7 @@ export class MultiChainContractManager {
     for (const { chainId, contract } of this.getAllContracts()) {
       try {
         const chainConfig = getChainConfig(chainId);
-        // This assumes getBounties method exists on contract
-        // Adjust based on actual contract interface
-        const bounties = await contract.getAllBounties?.();
+        const bounties = await contract.getBounties(0);
 
         results.push({
           chainId,

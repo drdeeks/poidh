@@ -18,7 +18,7 @@ export class WalletManager {
   constructor() {
     this.provider = new JsonRpcProvider(config.rpcUrl, {
       chainId: config.chainId,
-      name: 'base-sepolia',
+      name: this.getChainName(config.chainId),
     });
   }
 

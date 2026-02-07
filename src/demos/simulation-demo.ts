@@ -95,8 +95,8 @@ async function runSimulation() {
   const { bountyId: bounty1Id, txHash: tx1 } = await mockPoidhContract.createSoloBounty(
     firstValidConfig.name,
     firstValidConfig.description,
-    firstValidConfig.rewardEth,
-    firstValidConfig.deadline
+    firstValidConfig.deadline,
+    firstValidConfig.rewardEth
   );
 
   console.log(`\n✅ First-Valid Bounty Created`);
@@ -122,8 +122,8 @@ async function runSimulation() {
   const { bountyId: bounty2Id, txHash: tx2 } = await mockPoidhContract.createSoloBounty(
     aiJudgedConfig.name,
     aiJudgedConfig.description,
-    aiJudgedConfig.rewardEth,
-    aiJudgedConfig.deadline
+    aiJudgedConfig.deadline,
+    aiJudgedConfig.rewardEth
   );
 
   console.log(`\n✅ AI-Judged Bounty Created`);

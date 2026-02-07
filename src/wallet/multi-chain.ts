@@ -4,7 +4,7 @@
  */
 
 import { Wallet, JsonRpcProvider, formatEther } from 'ethers';
-import { config, getNetworkName2, getBlockExplorerUrl } from '../config';
+import { config, getNetworkName2, getTxExplorerUrl } from '../config';
 import { getChainConfig } from '../config/chains';
 import { log } from '../utils/logger';
 import { FallbackProvider } from '../utils/fallback';

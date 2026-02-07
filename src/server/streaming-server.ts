@@ -14,7 +14,8 @@ import WebSocket from 'ws';
 import path from 'path';
 import { log } from '../utils/logger';
 import { auditTrail } from '../utils/audit-trail';
-import { config } from '../config';
+import { config, getTxExplorerUrl, getContractExplorerLink } from '../config';
+import { getChainConfig, getChainName } from '../config/chains';
 
 const app: Express = express();
 const PORT = parseInt(process.env.STREAMING_PORT || '3001', 10);
@@ -23,6 +24,37 @@ const PORT = parseInt(process.env.STREAMING_PORT || '3001', 10);
 let lastAuditChecksum = '';
 let connectedClients: WebSocket[] = [];
 let sseClients: Response[] = [];
+
+function getChainContext() {
+  const chainId = config.chainId;
+  try {
+    const chainCfg = getChainConfig(chainId);
+    return {
+      chainId,
+      chainName: chainCfg.name,
+      nativeCurrency: chainCfg.nativeCurrency,
+      explorerBaseUrl: chainCfg.blockExplorerUrls[0],
+      contractAddress: config.poidhContractAddress,
+      contractExplorerUrl: getContractExplorerLink(config.poidhContractAddress, chainId),
+    };
+  } catch {
+    return {
+      chainId,
+      chainName: `Chain ${chainId}`,
+      nativeCurrency: 'ETH',
+      explorerBaseUrl: '',
+      contractAddress: config.poidhContractAddress,
+      contractExplorerUrl: '',
+    };
+  }
+}
+
+function enrichEntry(entry: any) {
+  return {
+    ...entry,
+    txExplorerUrl: entry.txHash ? getTxExplorerUrl(entry.txHash, config.chainId) : undefined,
+  };
+}
 
 // Initialize audit trail
 try {
@@ -40,7 +72,12 @@ app.use(express.json());
  * Health check endpoint
  */
 app.get('/health', (req: Request, res: Response) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  const chain = getChainContext();
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    chain,
+  });
 });
 
 /**
@@ -76,6 +113,7 @@ app.get('/api/audit-state', (req: Request, res: Response) => {
         contractAddress: summary.contractAddress,
       },
       summary,
+      chain: getChainContext(),
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -91,11 +129,12 @@ app.get('/api/recent-entries', (req: Request, res: Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 50;
     const state = auditTrail.getState();
-    const recent = state.entries.slice(-limit).reverse();
+    const recent = state.entries.slice(-limit).reverse().map(enrichEntry);
     
     res.json({
       entries: recent,
       total: state.entries.length,
+      chain: getChainContext(),
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -112,7 +151,7 @@ app.get('/api/winners', (req: Request, res: Response) => {
     const state = auditTrail.getState();
     const winners = state.entries
       .filter(e => e.action === 'WINNER_RATIONALE')
-      .map(e => ({
+      .map(e => enrichEntry({
         ...e,
         timestamp: new Date(e.timestamp).toISOString(),
       }))
@@ -121,6 +160,7 @@ app.get('/api/winners', (req: Request, res: Response) => {
     res.json({
       winners,
       total: winners.length,
+      chain: getChainContext(),
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -137,7 +177,7 @@ app.get('/api/rejections', (req: Request, res: Response) => {
     const state = auditTrail.getState();
     const rejections = state.entries
       .filter(e => e.action === 'SUBMISSION_REJECTED')
-      .map(e => ({
+      .map(e => enrichEntry({
         sequence: e.sequence,
         timestamp: new Date(e.timestamp).toISOString(),
         action: e.action,
@@ -150,12 +190,14 @@ app.get('/api/rejections', (req: Request, res: Response) => {
         passedChecks: e.details.passedChecks || [],
         verificationMethod: 'Validation engine evaluated submission against bounty criteria',
         entryHash: e.entryHash,
+        txHash: e.txHash,
       }))
       .reverse();
     
     res.json({
       rejections,
       total: rejections.length,
+      chain: getChainContext(),
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -174,7 +216,7 @@ app.get('/api/decisions', (req: Request, res: Response) => {
       .filter(e => e.action === 'SUBMISSION_VALIDATED' || e.action === 'SUBMISSION_REJECTED')
       .map(e => {
         const isValidated = e.action === 'SUBMISSION_VALIDATED';
-        return {
+        return enrichEntry({
           sequence: e.sequence,
           timestamp: new Date(e.timestamp).toISOString(),
           action: e.action,
@@ -207,7 +249,8 @@ app.get('/api/decisions', (req: Request, res: Response) => {
             : 'Validation engine evaluated submission - failed to meet criteria',
           
           entryHash: e.entryHash,
-        };
+          txHash: e.txHash,
+        });
       })
       .reverse();
     
@@ -216,6 +259,7 @@ app.get('/api/decisions', (req: Request, res: Response) => {
       total: decisions.length,
       accepted: decisions.filter(d => d.decision === 'ACCEPTED').length,
       rejected: decisions.filter(d => d.decision === 'REJECTED').length,
+      chain: getChainContext(),
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -251,6 +295,72 @@ app.get('/api/indexed-bounties', (req: Request, res: Response) => {
     res.json({
       indexed,
       total: indexed.length,
+      chain: getChainContext(),
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: msg });
+  }
+});
+
+/**
+ * Get all bounties (created + auto-indexed) with chain-aware fields
+ */
+app.get('/api/bounties', (req: Request, res: Response) => {
+  try {
+    const state = auditTrail.getState();
+    const chain = getChainContext();
+    const bounties: any[] = [];
+
+    // From BOUNTY_CREATED entries
+    state.entries
+      .filter(e => e.action === 'BOUNTY_CREATED')
+      .forEach(e => {
+        bounties.push({
+          id: e.details.onChainId || e.details.configId,
+          name: e.details.name,
+          reward: e.details.rewardAmount || e.details.rewardEth,
+          currency: e.details.rewardCurrency || chain.nativeCurrency,
+          chainId: e.details.chainId || chain.chainId,
+          chainName: e.details.chainName || chain.chainName,
+          selectionMode: e.details.selectionMode,
+          proofType: e.details.proofType,
+          deadline: e.details.deadline,
+          txHash: e.txHash,
+          txExplorerUrl: e.txHash ? getTxExplorerUrl(e.txHash, e.details.chainId || chain.chainId) : undefined,
+          source: 'created',
+          createdAt: e.timestamp,
+        });
+      });
+
+    // From auto-indexed entries
+    state.entries
+      .filter(e => e.action === 'BOUNTIES_AUTO_INDEXED')
+      .forEach(e => {
+        if (e.details.discoveredBounties) {
+          e.details.discoveredBounties.forEach((b: any) => {
+            if (!bounties.find(x => x.id === b.id)) {
+              bounties.push({
+                id: b.id,
+                name: b.name,
+                reward: b.rewardAmount,
+                currency: b.rewardCurrency || e.details.nativeCurrency || chain.nativeCurrency,
+                chainId: e.details.chainId || chain.chainId,
+                chainName: b.chainName || e.details.chainName || chain.chainName,
+                selectionMode: 'auto-indexed',
+                source: 'auto-indexed',
+                createdAt: e.timestamp,
+              });
+            }
+          });
+        }
+      });
+
+    res.json({
+      bounties,
+      total: bounties.length,
+      chain,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -280,6 +390,7 @@ app.get('/api/stream', (req: Request, res: Response) => {
       contractAddress: summary.contractAddress,
     },
     summary,
+    chain: getChainContext(),
     timestamp: new Date().toISOString(),
   })}\n\n`);
 
@@ -328,19 +439,19 @@ function pollAuditTrail(): void {
     const summary = auditTrail.getSummary();
     const latestEntry = state.entries[state.entries.length - 1];
     
-    if (latestEntry && latestEntry.entryHash !== lastAuditChecksum) { // Use entryHash for robust change detection
-      lastAuditChecksum = latestEntry.entryHash; // Update checksum with the new entryHash
+    if (latestEntry && latestEntry.entryHash !== lastAuditChecksum) {
+      lastAuditChecksum = latestEntry.entryHash;
+      
+      const recentEntries = state.entries.slice(-30).map(enrichEntry);
       
       broadcastUpdate({
         action: latestEntry.action,
         details: latestEntry.details,
         timestamp: latestEntry.timestamp,
+        latestEntry: enrichEntry(latestEntry),
+        recentEntries,
         summary,
-        state: {
-          chainId: summary.chainId,
-          chainName: summary.chainName,
-          contractAddress: summary.contractAddress,
-        },
+        chain: getChainContext(),
       });
     }
   } catch (error) {
@@ -377,6 +488,7 @@ wss.on('connection', (ws: WebSocket) => {
       contractAddress: summary.contractAddress,
     },
     summary,
+    chain: getChainContext(),
     timestamp: new Date().toISOString(),
   });
   ws.send(initMessage);
@@ -410,6 +522,7 @@ server.listen(PORT, () => {
   log.info(`║   GET /api/rejections    - Rejected submissions with reasons`);
   log.info(`║   GET /api/decisions     - All validation decisions (accept/reject)`);
   log.info(`║   GET /api/indexed-bounties - Auto-indexed bounties`);
+  log.info(`║   GET /api/bounties      - All bounties (chain-aware)`);
   log.info(`║   GET /api/stream        - Server-Sent Events stream`);
   log.info(`╠════════════════════════════════════════════════════════════════╣`);
   log.info(`║ Bot Activity is streaming in real-time`);

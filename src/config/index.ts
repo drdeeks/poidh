@@ -191,7 +191,7 @@ export function getNetworkName2(chainId: number): string {
   }
 }
 
-export function getBlockExplorerUrl(txHash: string, chainId?: number): string {
+export function getTxExplorerUrl(txHash: string, chainId?: number): string {
   const targetChainId = chainId || config.chainId;
   try {
     const chain = getChainConfig(targetChainId);
@@ -202,7 +202,7 @@ export function getBlockExplorerUrl(txHash: string, chainId?: number): string {
   }
 }
 
-export function getContractExplorerUrl(address?: string, chainId?: number): string {
+export function getContractExplorerLink(address?: string, chainId?: number): string {
   const targetChainId = chainId || config.chainId;
   const targetAddress = address || config.poidhContractAddress;
   try {

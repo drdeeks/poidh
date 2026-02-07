@@ -40,11 +40,9 @@ import { log } from './logger';
 // CONSTANTS & CONFIGURATION
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const POIDH_V3_CONTRACT = '0x5555Fa783936C260f77385b4E153B9725feF1719';
-
 // POIDH V3 ClaimCreated event (verified from contract ABI)
 const CLAIM_CREATED_ABI = [
-  'event ClaimCreated(uint256 indexed id, address indexed issuer, uint256 indexed bountyId, address bountyIssuer, string title, string description, uint256 createdAt, string imageUri, uint256 round)'
+  'event ClaimCreated(uint256 indexed id, address indexed issuer, uint256 indexed bountyId, address bountyIssuer, string title, string description, uint256 createdAt, string imageUri)'
 ];
 
 // createClaim function selector for TX input decoding
@@ -161,7 +159,7 @@ interface AuditLogEntry {
 function generateVerificationHash(uri: string, claimId: string, bountyId: string): string {
   return crypto
     .createHash('sha256')
-    .update(`${uri}:${claimId}:${bountyId}:${POIDH_V3_CONTRACT}`)
+    .update(`${uri}:${claimId}:${bountyId}:${config.poidhContractAddress}`)
     .digest('hex')
     .slice(0, 16);
 }
@@ -390,9 +388,17 @@ class URIFetcher {
   }
 
   private getBlockscoutUrl(): string {
-    return config.chainId === 8453
-      ? 'https://base.blockscout.com'
-      : 'https://base-sepolia.blockscout.com';
+    const urls: Record<number, string> = {
+      8453: 'https://base.blockscout.com',
+      84532: 'https://base-sepolia.blockscout.com',
+      42161: 'https://arbitrum.blockscout.com',
+      421614: 'https://sepolia.arbiscan.io',
+      666666666: 'https://explorer.degen.tips',
+      1: 'https://eth.blockscout.com',
+      10: 'https://optimism.blockscout.com',
+      137: 'https://polygon.blockscout.com',
+    };
+    return urls[config.chainId] || urls[8453];
   }
 
   private checkCircuit(name: string): boolean {
