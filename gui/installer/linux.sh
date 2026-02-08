@@ -16,7 +16,9 @@ mkdir -p "$RELEASE_DIR"
 
 # Check if PyInstaller executable exists
 if [ ! -f "$BUILD_DIR/POIDH-Bot-GUI" ]; then
-  echo "❌ Linux executable not found. Run build.sh first"
+  echo "❌ Linux executable not found at $BUILD_DIR/POIDH-Bot-GUI"
+  echo "   Available files in $BUILD_DIR:"
+  ls -la "$BUILD_DIR" 2>/dev/null || echo "   (directory doesn't exist)"
   exit 1
 fi
 

@@ -13,10 +13,16 @@ VERSION=$(grep '"version"' "$PROJECT_ROOT/package.json" | head -1 | sed 's/.*"ve
 echo "🍎 Building macOS DMG installer..."
 echo "Project root: $PROJECT_ROOT"
 echo "Version: $VERSION"
+echo "Build directory: $BUILD_DIR"
+
+# Create releases directory if it doesn't exist
+mkdir -p "$RELEASE_DIR"
 
 # Check if PyInstaller app exists
 if [ ! -d "$BUILD_DIR/POIDH-Bot-GUI.app" ]; then
-  echo "❌ macOS app not found. Run build.sh first"
+  echo "❌ macOS app not found at $BUILD_DIR/POIDH-Bot-GUI.app"
+  echo "   Available files in $BUILD_DIR:"
+  ls -la "$BUILD_DIR" 2>/dev/null || echo "   (directory doesn't exist)"
   exit 1
 fi
 

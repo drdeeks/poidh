@@ -45,14 +45,9 @@ jobs:
 
       - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: releases/POIDH-Bot-*.dmg
-          asset_name: POIDH-Bot-${{ github.ref_name }}-macos.dmg
-          asset_content_type: application/x-apple-diskimage
+          files: releases/*.dmg
 
   build-linux:
     runs-on: ubuntu-latest
@@ -138,10 +133,10 @@ jobs:
         run: npm install
 
       - name: Install Python dependencies
-        run: pip install -r gui\requirements.txt
+        run: pip install -r gui/requirements.txt
 
       - name: Build PyInstaller executable
-        run: gui\build.bat
+        run: cd gui && bash build.sh
 
       - name: Install NSIS
         uses: joncloud/makensis-action@v3.7
@@ -149,8 +144,9 @@ jobs:
       - name: Create Windows installer
         run: |
           $PROJECT_ROOT = Get-Location
-          $VERSION = (Get-Content package.json | Select-String '"version"' | Select-Object -First 1) -replace '.*"version":\s*"([^"]*)".*', '$1'
-          makensis /D PROJECT_ROOT="$PROJECT_ROOT" /D VERSION="$VERSION" gui\installer\windows.nsi
+          $json = Get-Content package.json | ConvertFrom-Json
+          $VERSION = $json.version
+          makensis /D PROJECT_ROOT="$PROJECT_ROOT" /D VERSION="$VERSION" "gui\installer\windows.nsi"
 
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v3
@@ -177,37 +173,52 @@ jobs:
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "## Release $VERSION" > release_notes.md
-          echo "" >> release_notes.md
-          echo "### Downloads" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "- **Windows**: POIDH-Bot-Setup-$VERSION-x64.exe" >> release_notes.md
-          echo "- **macOS**: POIDH-Bot-$VERSION-macos.dmg" >> release_notes.md
-          echo "- **Linux**: POIDH-Bot-$VERSION-x86_64.AppImage or poidh-bot_${VERSION}_amd64.deb" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "### Installation Instructions" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "#### Windows" >> release_notes.md
-          echo "1. Download POIDH-Bot-Setup-$VERSION-x64.exe" >> release_notes.md
-          echo "2. Run the installer" >> release_notes.md
-          echo "3. Follow the installation wizard" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "#### macOS" >> release_notes.md
-          echo "1. Download POIDH-Bot-$VERSION-macos.dmg" >> release_notes.md
-          echo "2. Open the DMG file" >> release_notes.md
-          echo "3. Drag POIDH-Bot-GUI.app to Applications folder" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "#### Linux (AppImage)" >> release_notes.md
-          echo "1. Download POIDH-Bot-$VERSION-x86_64.AppImage" >> release_notes.md
-          echo "2. Make it executable: chmod +x POIDH-Bot-$VERSION-x86_64.AppImage" >> release_notes.md
-          echo "3. Run: ./POIDH-Bot-$VERSION-x86_64.AppImage" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "#### Linux (DEB)" >> release_notes.md
-          echo "1. Download poidh-bot_${VERSION}_amd64.deb" >> release_notes.md
-          echo "2. Install: sudo apt install ./poidh-bot_${VERSION}_amd64.deb" >> release_notes.md
-          echo "3. Run: poidh-bot" >> release_notes.md
+          cat > release_notes.md << 'EOF'
+          ## Release Notes
+          
+          ### Downloads
+          
+          - **Windows**: POIDH-Bot-Setup-{VERSION}-x64.exe
+          - **macOS**: POIDH-Bot-{VERSION}-macos.dmg
+          - **Linux**: POIDH-Bot-{VERSION}-x86_64.AppImage or poidh-bot_{VERSION}_amd64.deb
+          
+          ### Installation
+          
+          #### Windows
+          1. Download POIDH-Bot-Setup-{VERSION}-x64.exe
+          2. Run the installer
+          3. Follow the installation wizard
+          
+          #### macOS
+          1. Download POIDH-Bot-{VERSION}-macos.dmg
+          2. Open the DMG file
+          3. Drag POIDH-Bot-GUI.app to Applications folder
+          
+          #### Linux (AppImage)
+          1. Download POIDH-Bot-{VERSION}-x86_64.AppImage
+          2. Make it executable: `chmod +x POIDH-Bot-{VERSION}-x86_64.AppImage`
+          3. Run: `./POIDH-Bot-{VERSION}-x86_64.AppImage`
+          
+          #### Linux (DEB)
+          1. Download poidh-bot_{VERSION}_amd64.deb
+          2. Install: `sudo apt install ./poidh-bot_{VERSION}_amd64.deb`
+          3. Run: `poidh-bot`
+          
+          ### Features
+          
+          - Autonomous bounty lifecycle management
+          - Real-time submission monitoring
+          - AI-powered evaluation (GPT-4 Vision)
+          - Multi-chain support (Base, Arbitrum, Degen, etc.)
+          - Professional GUI and CLI interfaces
+          
+          For more details, see [PACKAGING.md](https://github.com/drdeeks/poidh/blob/main/PACKAGING.md)
+          EOF
+          sed -i "s/{VERSION}/$VERSION/g" release_notes.md
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           body_path: release_notes.md
+          draft: false
+          prerelease: false

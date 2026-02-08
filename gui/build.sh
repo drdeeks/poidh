@@ -10,6 +10,18 @@ echo "🔨 Building POIDH GUI..."
 echo "Project root: $PROJECT_ROOT"
 echo "GUI directory: $GUI_DIR"
 
+# Check if poidh_gui.py exists
+if [ ! -f "$GUI_DIR/poidh_gui.py" ]; then
+  echo "❌ poidh_gui.py not found in $GUI_DIR"
+  exit 1
+fi
+
+# Check if requirements.txt exists
+if [ ! -f "$GUI_DIR/requirements.txt" ]; then
+  echo "❌ requirements.txt not found in $GUI_DIR"
+  exit 1
+fi
+
 # Install Python dependencies
 echo "📦 Installing Python dependencies..."
 pip install -r "$GUI_DIR/requirements.txt"
@@ -17,6 +29,9 @@ pip install -r "$GUI_DIR/requirements.txt"
 # Build with PyInstaller
 echo "🏗️  Building executable..."
 cd "$GUI_DIR"
+
+# Create releases directory for later use
+mkdir -p "$PROJECT_ROOT/releases"
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
     # macOS
