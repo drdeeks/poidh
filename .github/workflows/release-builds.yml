@@ -34,20 +34,42 @@ jobs:
       - name: Build PyInstaller executable
         run: bash gui/build.sh
 
+      - name: Verify build output
+        run: |
+          if [ ! -d "gui/dist/POIDH-Bot-GUI.app" ]; then
+            echo "❌ Build failed: POIDH-Bot-GUI.app not found"
+            ls -la gui/dist || echo "gui/dist directory not found"
+            exit 1
+          fi
+          echo "✅ Build successful"
+
       - name: Create DMG installer
         run: bash gui/installer/macos.sh
 
+      - name: Verify installer output
+        run: |
+          if [ ! -f "releases/POIDH-Bot-"*.dmg ]; then
+            echo "❌ Installer creation failed: no .dmg file found"
+            ls -la releases/ 2>/dev/null || echo "releases directory not found"
+            exit 1
+          fi
+          echo "✅ Installer created successfully"
+
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v3
+        if: success()
         with:
           name: macos-dmg
           path: releases/*.dmg
+          retention-days: 1
 
       - name: Upload to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') && success()
         uses: softprops/action-gh-release@v1
         with:
           files: releases/*.dmg
+          draft: false
+          prerelease: false
 
   build-linux:
     runs-on: ubuntu-latest
@@ -79,39 +101,68 @@ jobs:
       - name: Build PyInstaller executable
         run: bash gui/build.sh
 
+      - name: Verify build output
+        run: |
+          if [ ! -f "gui/dist/POIDH-Bot-GUI" ]; then
+            echo "❌ Build failed: POIDH-Bot-GUI executable not found"
+            ls -la gui/dist || echo "gui/dist directory not found"
+            exit 1
+          fi
+          echo "✅ Build successful"
+
       - name: Create Linux installers
         run: bash gui/installer/linux.sh
 
-      - name: Upload AppImage artifact
-        uses: actions/upload-artifact@v3
-        if: always()
-        with:
-          name: linux-appimage
-          path: releases/*.AppImage
-          if-no-files-found: ignore
-
-      - name: Upload DEB artifact
-        uses: actions/upload-artifact@v3
-        if: always()
-        with:
-          name: linux-deb
-          path: releases/*.deb
-          if-no-files-found: ignore
+      - name: Verify installer outputs
+        run: |
+          found=0
+          for file in "releases/poidh-bot-"*.tar.gz "releases/POIDH-Bot-"*.AppImage "releases/poidh-bot_"*.deb; do
+            if [ -f "$file" ]; then
+              echo "✅ Found: $(basename $file)"
+              found=$((found+1))
+            fi
+          done
+          if [ $found -eq 0 ]; then
+            echo "❌ No installers created"
+            ls -la releases/ 2>/dev/null || echo "releases directory not found"
+            exit 1
+          fi
+          echo "✅ Created $found installer(s)"
 
       - name: Upload Tarball artifact
         uses: actions/upload-artifact@v3
+        if: success()
         with:
           name: linux-tarball
           path: releases/*.tar.gz
+          retention-days: 1
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v3
+        if: success()
+        with:
+          name: linux-appimage
+          path: releases/*.AppImage
+          retention-days: 1
+
+      - name: Upload DEB artifact
+        uses: actions/upload-artifact@v3
+        if: success()
+        with:
+          name: linux-deb
+          path: releases/*.deb
+          retention-days: 1
 
       - name: Upload to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') && success()
         uses: softprops/action-gh-release@v1
         with:
           files: |
+            releases/*.tar.gz
             releases/*.AppImage
             releases/*.deb
-            releases/*.tar.gz
+          draft: false
+          prerelease: false
 
   build-windows:
     runs-on: windows-latest
@@ -136,29 +187,68 @@ jobs:
         run: pip install -r gui/requirements.txt
 
       - name: Build PyInstaller executable
-        run: cd gui && bash build.sh
+        run: bash gui/build.sh
+
+      - name: Verify build output (Windows)
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "gui/dist/POIDH-Bot-GUI.exe")) {
+            Write-Error "Build failed: POIDH-Bot-GUI.exe not found"
+            Get-ChildItem gui/dist -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName }
+            exit 1
+          }
+          Write-Host "✅ Build successful"
 
       - name: Install NSIS
         uses: joncloud/makensis-action@v3.7
 
       - name: Create Windows installer
+        shell: pwsh
         run: |
           $PROJECT_ROOT = Get-Location
           $json = Get-Content package.json | ConvertFrom-Json
           $VERSION = $json.version
-          makensis /D PROJECT_ROOT="$PROJECT_ROOT" /D VERSION="$VERSION" "gui\installer\windows.nsi"
+          Write-Host "Building NSIS installer..."
+          Write-Host "PROJECT_ROOT=$PROJECT_ROOT"
+          Write-Host "VERSION=$VERSION"
+          $nsiScript = Join-Path "gui" "installer" "windows.nsi"
+          Write-Host "NSIS Script: $nsiScript"
+          if (-not (Test-Path $nsiScript)) {
+            Write-Error "NSIS script not found: $nsiScript"
+            exit 1
+          }
+          makensis /D PROJECT_ROOT="$PROJECT_ROOT" /D VERSION="$VERSION" "$nsiScript"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "NSIS build failed with exit code $LASTEXITCODE"
+            exit 1
+          }
+
+      - name: Verify installer output (Windows)
+        shell: pwsh
+        run: |
+          $found = Get-ChildItem "releases/" -Filter "*.exe" -ErrorAction SilentlyContinue
+          if (-not $found) {
+            Write-Error "Installer creation failed: no .exe file found"
+            Get-ChildItem "releases/" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName }
+            exit 1
+          }
+          Write-Host "✅ Installer created: $($found.Name)"
 
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v3
+        if: success()
         with:
           name: windows-exe
           path: releases/*.exe
+          retention-days: 1
 
       - name: Upload to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') && success()
         uses: softprops/action-gh-release@v1
         with:
           files: releases/*.exe
+          draft: false
+          prerelease: false
 
   create-release:
     needs: [build-macos, build-linux, build-windows]
@@ -168,57 +258,59 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Generate Release Notes
-        id: release_notes
+      - name: Create Release Notes
+        env:
+          VERSION: ${{ github.ref_name }}
         run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          cat > release_notes.md << 'EOF'
+          cat > release_notes.md << 'RELEASE_EOF'
           ## Release Notes
-          
+
           ### Downloads
-          
-          - **Windows**: POIDH-Bot-Setup-{VERSION}-x64.exe
-          - **macOS**: POIDH-Bot-{VERSION}-macos.dmg
-          - **Linux**: POIDH-Bot-{VERSION}-x86_64.AppImage or poidh-bot_{VERSION}_amd64.deb
-          
-          ### Installation
-          
+
+          - **Windows**: POIDH-Bot-Setup-VERSION-x64.exe
+          - **macOS**: POIDH-Bot-VERSION-macos.dmg
+          - **Linux**: POIDH-Bot-VERSION-x86_64.AppImage or poidh-bot_VERSION_amd64.deb
+
+          ### Installation Instructions
+
           #### Windows
-          1. Download POIDH-Bot-Setup-{VERSION}-x64.exe
+          1. Download POIDH-Bot-Setup-VERSION-x64.exe
           2. Run the installer
           3. Follow the installation wizard
-          
+
           #### macOS
-          1. Download POIDH-Bot-{VERSION}-macos.dmg
+          1. Download POIDH-Bot-VERSION-macos.dmg
           2. Open the DMG file
           3. Drag POIDH-Bot-GUI.app to Applications folder
-          
-          #### Linux (AppImage)
-          1. Download POIDH-Bot-{VERSION}-x86_64.AppImage
-          2. Make it executable: `chmod +x POIDH-Bot-{VERSION}-x86_64.AppImage`
-          3. Run: `./POIDH-Bot-{VERSION}-x86_64.AppImage`
-          
-          #### Linux (DEB)
-          1. Download poidh-bot_{VERSION}_amd64.deb
-          2. Install: `sudo apt install ./poidh-bot_{VERSION}_amd64.deb`
-          3. Run: `poidh-bot`
-          
-          ### Features
-          
-          - Autonomous bounty lifecycle management
-          - Real-time submission monitoring
-          - AI-powered evaluation (GPT-4 Vision)
-          - Multi-chain support (Base, Arbitrum, Degen, etc.)
-          - Professional GUI and CLI interfaces
-          
-          For more details, see [PACKAGING.md](https://github.com/drdeeks/poidh/blob/main/PACKAGING.md)
-          EOF
-          sed -i "s/{VERSION}/$VERSION/g" release_notes.md
 
-      - name: Create Release
+          #### Linux (AppImage)
+          1. Download POIDH-Bot-VERSION-x86_64.AppImage
+          2. Make it executable: `chmod +x POIDH-Bot-VERSION-x86_64.AppImage`
+          3. Run: `./POIDH-Bot-VERSION-x86_64.AppImage`
+
+          #### Linux (DEB)
+          1. Download poidh-bot_VERSION_amd64.deb
+          2. Install: `sudo apt install ./poidh-bot_VERSION_amd64.deb`
+          3. Run: `poidh-bot`
+
+          ### Features
+
+          - ✨ Autonomous bounty lifecycle management
+          - 📊 Real-time submission monitoring
+          - 🤖 AI-powered evaluation (GPT-4 Vision)
+          - 🔗 Multi-chain support (Base, Arbitrum, Degen, etc.)
+          - 💻 Professional GUI and CLI interfaces
+
+          For installation details, see [PACKAGING.md](https://github.com/drdeeks/poidh/blob/main/PACKAGING.md)
+          RELEASE_EOF
+          sed -i "s/VERSION/$VERSION/g" release_notes.md
+          echo "Release notes created:"
+          cat release_notes.md
+
+      - name: Publish Release
         uses: softprops/action-gh-release@v1
         with:
           body_path: release_notes.md
           draft: false
           prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
