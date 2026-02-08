@@ -199,25 +199,25 @@ class POIDHCLI:
     
     def _check_nodejs(self) -> bool:
         try:
-            subprocess.run(
+            result = subprocess.run(
                 "node --version",
                 capture_output=True,
-                check=True,
-                timeout=5
+                timeout=5,
+                shell=True
             )
-            return True
+            return result.returncode == 0
         except:
             return False
     
     def _check_npm(self) -> bool:
         try:
-            subprocess.run(
+            result = subprocess.run(
                 "npm --version",
                 capture_output=True,
-                check=True,
-                timeout=5
+                timeout=5,
+                shell=True
             )
-            return True
+            return result.returncode == 0
         except:
             return False
     

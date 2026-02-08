@@ -1,362 +1,440 @@
-# Installation Guide - POIDH Bounty Bot GUI
+# POIDH Autonomous Bounty Bot - Installation Guide
 
-Complete setup instructions for all platforms.
+Complete setup instructions for the GUI and CLI applications.
 
----
+## Quick Install
+
+### Linux/macOS
+
+```bash
+# 1. Clone repository
+git clone https://github.com/drdeek/poidh-autonomous.git
+cd poidh-autonomous
+
+# 2. Run setup
+python3 gui/setup.py
+
+# 3. Start GUI
+python3 gui/poidh_gui.py
+
+# Or use CLI
+python3 gui/cli.py --help
+```
+
+### Windows
+
+```cmd
+REM 1. Clone repository
+git clone https://github.com/drdeek/poidh-autonomous.git
+cd poidh-autonomous
+
+REM 2. Run setup (requires Python 3.8+)
+python gui/setup.py
+
+REM 3. Start GUI
+python gui/poidh_gui.py
+
+REM Or use CLI
+python gui/cli.py --help
+```
+
+## System Requirements
+
+### Minimum
+- **OS**: Windows 10+, macOS 10.13+, Ubuntu 18.04+
+- **RAM**: 512 MB
+- **Disk**: 1 GB (includes Node.js deps)
+- **Internet**: Required for RPC calls and OpenAI API
+
+### Recommended
+- **OS**: Windows 11, macOS 12+, Ubuntu 22.04+
+- **RAM**: 2 GB
+- **Disk**: 2 GB
+- **Network**: Stable internet (1+ Mbps)
 
 ## Prerequisites
 
-### All Platforms
-- **Python 3.9+** (get from python.org)
-- **Node.js 18+** (get from nodejs.org)
-- **Internet connection**
-- **200 MB free disk space** (minimum)
+### Required Software
 
-### Windows
-- Windows 10 or later
-- Administrator access (for first-time npm setup)
+1. **Node.js 18+**
+   - Download: https://nodejs.org/
+   - Verify: `node --version` and `npm --version`
 
-### macOS
-- macOS 10.14 or later
-- Xcode Command Line Tools: `xcode-select --install`
+2. **Python 3.8+**
+   - Download: https://www.python.org/downloads/
+   - Verify: `python --version` or `python3 --version`
 
-### Linux
-- Ubuntu 18.04+ (or equivalent)
-- Build essentials: `sudo apt install build-essential python3-dev`
+3. **Git** (for cloning)
+   - Download: https://git-scm.com/
+   - Verify: `git --version`
 
----
+### Check Prerequisites
+
+```bash
+# Linux/macOS
+node --version      # Should be 18.x.x or higher
+npm --version       # Should be 9.x.x or higher
+python3 --version   # Should be 3.8+ or higher
+git --version       # Should be 2.x.x or higher
+
+# Windows (use similar commands in Command Prompt)
+node --version
+npm --version
+python --version
+git --version
+```
 
 ## Installation Methods
 
-### Method 1: Download Standalone Executable (Easiest)
+### Method 1: Automated Setup (Recommended)
 
-**For Windows:**
-1. Download `poidh-bot-gui.exe` from releases
-2. Double-click to run
-3. Skip to "First-Time Setup" section
-
-**For macOS:**
-1. Download `poidh-bot-gui.dmg` from releases
-2. Double-click to mount
-3. Drag to Applications folder
-4. Launch from Applications
-5. Skip to "First-Time Setup" section
-
-**For Linux:**
-1. Download `poidh-bot-gui` from releases
-2. Make executable: `chmod +x poidh-bot-gui`
-3. Run: `./poidh-bot-gui`
-4. Skip to "First-Time Setup" section
-
----
-
-### Method 2: Python pip Installation
-
-**Step 1: Install Node.js**
+**Fastest way to get started.**
 
 ```bash
-# Windows (using Chocolatey)
-choco install nodejs
+# Clone repo
+git clone https://github.com/drdeek/poidh-autonomous.git
+cd poidh-autonomous
 
-# macOS (using Homebrew)
-brew install node
+# Run automated setup
+python3 gui/setup.py
 
-# Linux (Ubuntu/Debian)
-sudo apt update
-sudo apt install nodejs npm
+# If setup succeeded:
+python3 gui/poidh_gui.py
 ```
 
-**Step 2: Clone Repository**
+### Method 2: Manual Setup
+
+**More control, understand each step.**
 
 ```bash
-git clone https://github.com/drdeeks/poidh.git
-cd poidh
+# 1. Clone repository
+git clone https://github.com/drdeek/poidh-autonomous.git
+cd poidh-autonomous
+
+# 2. Install Node.js dependencies
+npm install
+
+# 3. Install Python GUI dependencies
+pip install -r gui/requirements.txt
+
+# Or with --user flag (for managed Python environments)
+pip install -r gui/requirements.txt --user
+
+# Or with --break-system-packages (Ubuntu 23.10+)
+pip install -r gui/requirements.txt --break-system-packages
+
+# 4. Run GUI
+python3 gui/poidh_gui.py
+
+# Or run CLI
+python3 gui/cli.py wallet create
 ```
 
-**Step 3: Install Python Dependencies**
+### Method 3: Virtual Environment
+
+**Isolated Python environment (best practice).**
 
 ```bash
+# 1. Clone repository
+git clone https://github.com/drdeek/poidh-autonomous.git
+cd poidh-autonomous
+
+# 2. Create virtual environment
+python3 -m venv venv
+
+# 3. Activate virtual environment
+# macOS/Linux:
+source venv/bin/activate
+
+# Windows:
+venv\Scripts\activate
+
+# 4. Install dependencies
+npm install
+pip install -r gui/requirements.txt
+
+# 5. Run GUI
+python3 gui/poidh_gui.py
+
+# Deactivate when done:
+deactivate
+```
+
+### Method 4: Docker
+
+**Containerized setup (no local installation needed).**
+
+```bash
+# 1. Build Docker image
+docker build -t poidh-bot -f Dockerfile.gui .
+
+# 2. Run container (for CLI)
+docker run -it poidh-bot python gui/cli.py health
+
+# 3. Run GUI (requires X11/display forwarding)
+docker run -it -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix poidh-bot
+```
+
+### Method 5: Build Standalone Executable
+
+**Package as single-file executable (no Python installation needed).**
+
+```bash
+# Linux/macOS
 cd gui
-pip install -r requirements.txt
-```
+./build.sh
 
-**Step 4: Run GUI**
-
-```bash
-python main.py
-```
-
----
-
-### Method 3: Development Installation
-
-For developers who want to modify the code:
-
-```bash
-# Clone repository
-git clone https://github.com/drdeeks/poidh.git
-cd poidh/gui
-
-# Install in development mode
-pip install -e .
-
-# Run
-poidh-bot-gui
-
-# Or run directly
-python main.py
-```
-
----
-
-### Method 4: Build Your Own Executable
-
-**Step 1: Prerequisites**
-
-```bash
-# Clone repository
-git clone https://github.com/drdeeks/poidh.git
-cd poidh/gui
-
-# Install build dependencies
-pip install -r requirements.txt
-pip install PyInstaller
-```
-
-**Step 2: Build**
-
-```bash
-python build.py
-```
-
-**Step 3: Use**
-
-The executable is in `dist/poidh-bot-gui/`
-
-```bash
 # Windows
-dist\poidh-bot-gui\poidh-bot-gui.exe
+cd gui
+build.bat
 
-# macOS/Linux
-dist/poidh-bot-gui/poidh-bot-gui
+# Output location
+# Linux/macOS: gui/dist/POIDH-Bot-GUI
+# Windows: gui\dist\POIDH-Bot-GUI.exe
+
+# Run directly
+./gui/dist/POIDH-Bot-GUI
 ```
 
----
+## Post-Installation
 
-## First-Time Setup
-
-### 1. Launch Application
+### 1. Verify Installation
 
 ```bash
-# If using standalone executable
-./poidh-bot-gui
+# Check system health
+python3 gui/cli.py health
 
-# If using Python
-python main.py
-
-# If using pip
-poidh-bot-gui
+# Expected output:
+# ✅ Wallet        (may show ❌ if no wallet yet)
+# ✅ Node.js
+# ✅ npm
+# ✅ RPC Connection
 ```
 
-### 2. Wallet Setup (💰 Wallet Tab)
+### 2. Create or Import Wallet
 
 **Option A: Generate New Wallet**
-1. Click **"Generate New Wallet"**
-2. Wait for output
-3. Copy the private key somewhere safe
-4. ✅ Wallet generated
+```bash
+python3 gui/cli.py wallet create
+```
 
 **Option B: Import Existing Wallet**
-1. Enter your private key (0x...)
-2. Click **"Import & Save"**
-3. ✅ Wallet imported
-
-### 3. Fund Your Wallet
-
-1. Click **"Check Wallet Balance"**
-2. Copy the address shown
-3. Send funds from your exchange:
-   - **Degen chain**: 50+ DEGEN
-   - **Base chain**: 0.01+ ETH
-   - **Arbitrum**: 0.01+ ETH
-
-### 4. Configure (⚙️ Configuration Tab)
-
-1. **Blockchain**
-   - Select primary chain (usually Degen or Base)
-   - Keep supported chains as is (or customize)
-
-2. **RPC Endpoints** (leave defaults if they work)
-   - Base: `https://mainnet.base.org`
-   - Arbitrum: `https://arb1.arbitrum.io/rpc`
-   - Degen: `https://rpc.degen.tips`
-
-3. **AI (Optional)**
-   - Get OpenAI key from platform.openai.com
-   - Only needed for AI-judged bounties
-   - Leave blank if not using
-
-4. **Performance**
-   - Polling Interval: 30 (default is fine)
-   - Max Gas: 50 (default is fine)
-   - Dashboard Port: 3001 (if port in use, change it)
-
-5. **Click "Save Configuration"**
-
-### 5. Create First Bounty (🤖 Agent Tab)
-
-1. Click any pre-built bounty button
-   - 🌳 **Prove Outside** - Quick (15 min)
-   - 🍽️ **Meal Photo** - Quick (30 min)
-   - 📝 **Handwritten Date** - Moderate (1 hour)
-   - 🗼 **Object Tower** - AI-judged (48h)
-   - 🌗 **Shadow Art** - AI-judged (72h)
-   - 🐾 **Animal Photo** - AI-judged (48h)
-
-2. Watch output for success message
-
-3. Check **📊 Dashboard** tab to see real-time activity
-
----
-
-## Verification
-
-### Check Installation
-
-**Python**
 ```bash
-python --version
-# Should show Python 3.9 or higher
+# Via GUI: Wallet Tab → "Import from Private Key"
+# Or set in .env manually:
+echo "BOT_PRIVATE_KEY=0x..." >> .env
 ```
 
-**Node.js**
+### 3. Configure Chain and Keys
+
 ```bash
-node --version
-npm --version
-# Should show current versions
+# Via CLI
+python3 gui/cli.py config set CHAIN_ID 8453
+python3 gui/cli.py config set OPENAI_API_KEY sk-...
+
+# Or via GUI: Configuration Tab
+# Or edit .env directly
 ```
 
-**GUI Launch**
+### 4. Start Using
+
 ```bash
-cd poidh/gui
-python main.py
-# Should open window without errors
+# Via GUI
+python3 gui/poidh_gui.py
+
+# Via CLI - List bounties
+python3 gui/cli.py bounty list
+
+# Via CLI - Launch bounty
+python3 gui/cli.py bounty launch proveOutside
 ```
-
-### Test Wallet
-
-1. Open GUI
-2. Go to 💰 Wallet tab
-3. Click "Check Wallet Balance"
-4. Should show address and balance
-5. ✅ Setup is working
-
-### Test Configuration
-
-1. Go to ⚙️ Configuration tab
-2. Fill in any values
-3. Click "Save Configuration"
-4. Check that `.env` file has values
-5. ✅ Configuration works
-
----
 
 ## Troubleshooting
 
-### Issue: "No module named PyQt6"
+### Python Version Issues
 
-**Solution:**
-```bash
-pip install PyQt6 PyQt6-WebEngine
+```
+Error: Python 3.8+ required
+Solution: Update Python
+Windows: https://www.python.org/downloads/
+macOS: brew install python3
+Linux: apt-get install python3.10
 ```
 
-### Issue: "Node.js not found"
+### Node.js/npm Not Found
 
-**Solution:**
-1. Install Node.js from nodejs.org
-2. Restart the application
-3. Restart your terminal/command prompt
-
-### Issue: "Permission denied" (Linux/Mac)
-
-**Solution:**
-```bash
-chmod +x poidh-bot-gui
-./poidh-bot-gui
+```
+Error: Command 'node' not found
+Solution: Install Node.js
+Download: https://nodejs.org/
+Add to PATH (Windows): Restart terminal after install
 ```
 
-### Issue: "Cannot find npm"
+### pip Permission Denied
 
-**Solution:**
-```bash
-# Verify npm is in PATH
-npm --version
-
-# If not found, reinstall Node.js
-# Then restart terminal
+```
+Error: externally-managed-environment
+Solution options:
+1. Use --user flag: pip install -r gui/requirements.txt --user
+2. Use --break-system-packages: pip install -r gui/requirements.txt --break-system-packages
+3. Use virtual environment: python3 -m venv venv && source venv/bin/activate
 ```
 
-### Issue: GUI window appears blank
+### PyQt5 Not Loading
 
-**Solution:**
-1. Check internet connection
-2. Close and restart the GUI
-3. Check system RAM (need 200+ MB free)
-4. Try resizing the window
-
-### Issue: "RPC connection error"
-
-**Solution:**
-1. Check internet connection
-2. Try different RPC endpoint
-3. Check your firewall
-4. Test with: `curl https://rpc.degen.tips`
-
-### Issue: Port 3001 already in use
-
-**Solution:**
-1. Go to ⚙️ Configuration
-2. Change "Dashboard Port" to different number (e.g., 3002)
-3. Save configuration
-4. Restart application
-
----
-
-## Uninstallation
-
-### Standalone Executable
-Simply delete the executable file. That's it!
-
-### Python Installation
-
-```bash
-# Via pip
-pip uninstall poidh-bot-gui
-
-# Or remove directory
-rm -rf poidh/
+```
+Error: ModuleNotFoundError: No module named 'PyQt5'
+Solution: pip install PyQt5==5.15.9
+Check: python3 -c "from PyQt5.QtWidgets import QApplication; print('OK')"
 ```
 
----
+### GUI Doesn't Start on macOS
+
+```
+Error: GUI window doesn't appear
+Solution: Run from terminal with:
+DYLD_FRAMEWORK_PATH=/usr/local/opt/qt/lib python3 gui/poidh_gui.py
+
+Or install via Homebrew:
+brew install pyqt5
+```
+
+### Linux Display Issues
+
+```
+Error: Could not connect to display
+Solution: Use headless CLI instead:
+python3 gui/cli.py bounty launch proveOutside
+
+Or use X11 forwarding via SSH:
+ssh -X user@server
+python3 gui/poidh_gui.py
+```
+
+### Wallet Balance Not Showing
+
+```
+Error: Balance shows "--"
+Solution:
+1. Check RPC URL is valid: python3 gui/cli.py config show
+2. Click "Refresh Balance" in Wallet tab
+3. Check RPC connection: python3 gui/cli.py health
+4. Verify CHAIN_ID matches RPC network
+```
+
+### .env File Permissions
+
+```
+Error: Could not write .env
+Linux/macOS solution: chmod 644 .env
+Windows: Right-click .env → Properties → Uncheck "Read-only"
+```
+
+## Environment Variables
+
+Create or edit `.env` file in project root:
+
+```bash
+# Blockchain Configuration
+CHAIN_ID=8453                                    # 8453, 42161, or 666666666
+SUPPORTED_CHAINS=8453,42161,666666666
+
+# Wallet (Created by "wallet create" command)
+BOT_PRIVATE_KEY=0x1234567890abcdef...
+
+# RPC URLs (optional, uses defaults if not set)
+BASE_RPC_URL=https://mainnet.base.org
+ARBITRUM_RPC_URL=https://arb1.arbitrum.io/rpc
+DEGEN_RPC_URL=https://rpc.degen.tips
+
+# API Keys
+OPENAI_API_KEY=sk-...                          # For AI-judged bounties
+ALCHEMY_KEY=...                                 # Optional
+INFURA_KEY=...                                  # Optional
+
+# Agent Settings
+POLLING_INTERVAL=30                             # Seconds
+MAX_GAS_PRICE_GWEI=50                          # Gwei
+AUTO_APPROVE_GAS=true                          # true or false
+
+# Logging
+LOG_LEVEL=info                                  # debug, info, warn, error
+```
+
+## Updating
+
+```bash
+# Pull latest changes
+git pull origin main
+
+# Reinstall if dependencies changed
+npm install
+pip install -r gui/requirements.txt --upgrade
+
+# Run setup to verify
+python3 gui/setup.py
+```
+
+## Uninstalling
+
+### Remove Local Installation
+
+```bash
+# Keep .env (contains wallet!)
+rm -rf node_modules
+rm -rf venv
+rm -rf gui/dist
+rm -rf gui/build
+
+# Or completely remove (backup .env first!)
+rm -rf ~/poidh-autonomous
+```
+
+### Remove Docker Images
+
+```bash
+docker rmi poidh-bot
+```
 
 ## Getting Help
 
-- **Documentation**: See [README.md](README.md)
-- **Issues**: https://github.com/drdeeks/poidh/issues
-- **Setup Issues**: Check prerequisites and troubleshooting above
+- **GitHub Issues**: https://github.com/drdeek/poidh-autonomous/issues
+- **Documentation**: Check `README.md` in project root
+- **CLI Help**: `python3 gui/cli.py --help`
+- **Health Check**: `python3 gui/cli.py health`
 
----
+## Security Notes
+
+⚠️ **Important**: The `.env` file contains sensitive information:
+- Private keys
+- API keys
+- Secret tokens
+
+**Protect your .env file:**
+```bash
+# Restrict file permissions
+chmod 600 .env
+
+# Never commit to Git
+echo ".env" >> .gitignore
+git rm --cached .env 2>/dev/null
+
+# Back up securely
+cp .env ~/.private/poidh.env
+```
 
 ## Next Steps
 
-✅ Application installed  
-✅ Wallet configured  
-✅ Funds deposited  
+1. **Start the GUI**: `python3 gui/poidh_gui.py`
+2. **Or use CLI**: `python3 gui/cli.py --help`
+3. **Read main README**: See `README.md` for full feature guide
+4. **Check deployment**: See `DEPLOYMENT.md` for production setup
 
-Now:
-1. Go to **🤖 Agent** tab
-2. Create your first bounty
-3. Monitor on **📊 Dashboard**
-4. Check **audit trail** for proof of autonomous operation
+---
 
-Enjoy! 🚀
+**Installation successful? Let's go!** 🚀
+
+```bash
+# Create your first bounty
+python3 gui/cli.py bounty launch proveOutside
+```

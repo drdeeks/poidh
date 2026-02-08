@@ -91,9 +91,23 @@ def install_python_deps():
         print(f"❌ {req_file} not found")
         return False
     
-    if not run_cmd(f"pip install -r {req_file}", check=True):
-        print("❌ Failed to install Python dependencies")
-        return False
+    # Try with --break-system-packages first (for Ubuntu 23.10+)
+    if not run_cmd(f"pip install -r {req_file} --break-system-packages", check=False):
+        # Try with --user flag for managed environments
+        if not run_cmd(f"pip install -r {req_file} --user", check=False):
+            # Try with venv
+            print("⚠️  Using virtual environment...")
+            if not run_cmd(f"python3 -m venv gui/venv", check=False):
+                print("❌ Failed to create virtual environment")
+                return False
+            
+            if not run_cmd(f"gui/venv/bin/pip install -r {req_file}", check=False):
+                print("❌ Failed to install Python dependencies")
+                return False
+            
+            print("✅ Python dependencies installed in virtual environment")
+            print("⚠️  To use GUI, activate venv: source gui/venv/bin/activate")
+            return True
     
     print("✅ Python dependencies installed")
     return True

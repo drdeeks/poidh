@@ -37,7 +37,11 @@
     "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist coverage logs"
+    "clean": "rm -rf dist coverage logs",
+    "gui": "python gui/poidh_gui.py",
+    "gui:build": "cd gui && bash build.sh",
+    "gui:build:win": "cd gui && build.bat",
+    "cli": "python gui/cli.py"
   },
   "dependencies": {
     "@types/express": "^5.0.6",

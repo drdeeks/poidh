@@ -1,0 +1,51 @@
+# Build artifacts
+dist/
+build/
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Cache
+.cache/
+*.cache
+
+# Logs
+*.log
+
+# Dependencies
+*.egg-info
+.eggs/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon^M
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# PyInstaller
+*.manifest
+*.spec.bak
