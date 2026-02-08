@@ -48,7 +48,7 @@ jobs:
 
       - name: Verify installer output
         run: |
-          if [ ! -f "releases/POIDH-Bot-"*.dmg ]; then
+          if ! ls releases/*.dmg 1> /dev/null 2>&1; then
             echo "❌ Installer creation failed: no .dmg file found"
             ls -la releases/ 2>/dev/null || echo "releases directory not found"
             exit 1
@@ -62,14 +62,6 @@ jobs:
           name: macos-dmg
           path: releases/*.dmg
           retention-days: 1
-
-      - name: Upload to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/') && success()
-        uses: softprops/action-gh-release@v1
-        with:
-          files: releases/*.dmg
-          draft: false
-          prerelease: false
 
   build-linux:
     runs-on: ubuntu-latest
@@ -116,9 +108,10 @@ jobs:
       - name: Verify installer outputs
         run: |
           found=0
-          for file in "releases/poidh-bot-"*.tar.gz "releases/POIDH-Bot-"*.AppImage "releases/poidh-bot_"*.deb; do
-            if [ -f "$file" ]; then
-              echo "✅ Found: $(basename $file)"
+          for ext in tar.gz AppImage deb; do
+            if ls releases/*.$ext 1> /dev/null 2>&1; then
+              count=$(ls releases/*.$ext 2>/dev/null | wc -l)
+              echo "✅ Found $count .$ext file(s)"
               found=$((found+1))
             fi
           done
@@ -127,7 +120,6 @@ jobs:
             ls -la releases/ 2>/dev/null || echo "releases directory not found"
             exit 1
           fi
-          echo "✅ Created $found installer(s)"
 
       - name: Upload Tarball artifact
         uses: actions/upload-artifact@v3
@@ -152,17 +144,6 @@ jobs:
           name: linux-deb
           path: releases/*.deb
           retention-days: 1
-
-      - name: Upload to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/') && success()
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            releases/*.tar.gz
-            releases/*.AppImage
-            releases/*.deb
-          draft: false
-          prerelease: false
 
   build-windows:
     runs-on: windows-latest
@@ -226,13 +207,13 @@ jobs:
       - name: Verify installer output (Windows)
         shell: pwsh
         run: |
-          $found = Get-ChildItem "releases/" -Filter "*.exe" -ErrorAction SilentlyContinue
-          if (-not $found) {
+          $found = @(Get-ChildItem "releases/" -Filter "*.exe" -ErrorAction SilentlyContinue)
+          if ($found.Count -eq 0) {
             Write-Error "Installer creation failed: no .exe file found"
             Get-ChildItem "releases/" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName }
             exit 1
           }
-          Write-Host "✅ Installer created: $($found.Name)"
+          Write-Host "✅ Installer created: $($found[0].Name)"
 
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v3
@@ -242,74 +223,84 @@ jobs:
           path: releases/*.exe
           retention-days: 1
 
-      - name: Upload to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/') && success()
-        uses: softprops/action-gh-release@v1
-        with:
-          files: releases/*.exe
-          draft: false
-          prerelease: false
-
   create-release:
     needs: [build-macos, build-linux, build-windows]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    name: Create Release Notes
+    if: startsWith(github.ref, 'refs/tags/') && success()
+    name: Create Release
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: release-artifacts
+
+      - name: List downloaded artifacts
+        run: |
+          echo "Downloaded artifacts:"
+          find release-artifacts -type f | sort
 
       - name: Create Release Notes
         env:
           VERSION: ${{ github.ref_name }}
         run: |
+          VERSION="${GITHUB_REF#refs/tags/}"
           cat > release_notes.md << 'RELEASE_EOF'
-          ## Release Notes
+## Release Notes
 
-          ### Downloads
+### Downloads
 
-          - **Windows**: POIDH-Bot-Setup-VERSION-x64.exe
-          - **macOS**: POIDH-Bot-VERSION-macos.dmg
-          - **Linux**: POIDH-Bot-VERSION-x86_64.AppImage or poidh-bot_VERSION_amd64.deb
+- **Windows**: POIDH-Bot-Setup-VERSION-x64.exe
+- **macOS**: POIDH-Bot-VERSION-macos.dmg
+- **Linux**: POIDH-Bot-VERSION-x86_64.AppImage or poidh-bot_VERSION_amd64.deb
 
-          ### Installation Instructions
+### Installation Instructions
 
-          #### Windows
-          1. Download POIDH-Bot-Setup-VERSION-x64.exe
-          2. Run the installer
-          3. Follow the installation wizard
+#### Windows
+1. Download POIDH-Bot-Setup-VERSION-x64.exe
+2. Run the installer
+3. Follow the installation wizard
 
-          #### macOS
-          1. Download POIDH-Bot-VERSION-macos.dmg
-          2. Open the DMG file
-          3. Drag POIDH-Bot-GUI.app to Applications folder
+#### macOS
+1. Download POIDH-Bot-VERSION-macos.dmg
+2. Open the DMG file
+3. Drag POIDH-Bot-GUI.app to Applications folder
 
-          #### Linux (AppImage)
-          1. Download POIDH-Bot-VERSION-x86_64.AppImage
-          2. Make it executable: `chmod +x POIDH-Bot-VERSION-x86_64.AppImage`
-          3. Run: `./POIDH-Bot-VERSION-x86_64.AppImage`
+#### Linux (AppImage)
+1. Download POIDH-Bot-VERSION-x86_64.AppImage
+2. Make it executable: `chmod +x POIDH-Bot-VERSION-x86_64.AppImage`
+3. Run: `./POIDH-Bot-VERSION-x86_64.AppImage`
 
-          #### Linux (DEB)
-          1. Download poidh-bot_VERSION_amd64.deb
-          2. Install: `sudo apt install ./poidh-bot_VERSION_amd64.deb`
-          3. Run: `poidh-bot`
+#### Linux (DEB)
+1. Download poidh-bot_VERSION_amd64.deb
+2. Install: `sudo apt install ./poidh-bot_VERSION_amd64.deb`
+3. Run: `poidh-bot`
 
-          ### Features
+### Features
 
-          - ✨ Autonomous bounty lifecycle management
-          - 📊 Real-time submission monitoring
-          - 🤖 AI-powered evaluation (GPT-4 Vision)
-          - 🔗 Multi-chain support (Base, Arbitrum, Degen, etc.)
-          - 💻 Professional GUI and CLI interfaces
+- ✨ Autonomous bounty lifecycle management
+- 📊 Real-time submission monitoring
+- 🤖 AI-powered evaluation (GPT-4 Vision)
+- 🔗 Multi-chain support (Base, Arbitrum, Degen, etc.)
+- 💻 Professional GUI and CLI interfaces
 
-          For installation details, see [PACKAGING.md](https://github.com/drdeeks/poidh/blob/main/PACKAGING.md)
-          RELEASE_EOF
-          sed -i "s/VERSION/$VERSION/g" release_notes.md
+For installation details, see [PACKAGING.md](https://github.com/drdeeks/poidh/blob/main/PACKAGING.md)
+RELEASE_EOF
+          # Use perl for portable sed (available on all platforms)
+          perl -i -pe "s/VERSION/$VERSION/g" release_notes.md
           echo "Release notes created:"
           cat release_notes.md
 
       - name: Publish Release
         uses: softprops/action-gh-release@v1
         with:
+          files: |
+            release-artifacts/macos-dmg/*.dmg
+            release-artifacts/linux-tarball/*.tar.gz
+            release-artifacts/linux-appimage/*.AppImage
+            release-artifacts/linux-deb/*.deb
+            release-artifacts/windows-exe/*.exe
           body_path: release_notes.md
           draft: false
           prerelease: false
