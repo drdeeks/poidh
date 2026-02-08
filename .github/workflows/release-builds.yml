@@ -1,0 +1,213 @@
+name: Cross-Platform Release Builds
+
+on:
+  push:
+    branches:
+      - standalone-packaging
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    name: Build macOS DMG
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Node.js dependencies
+        run: npm install
+
+      - name: Install Python dependencies
+        run: pip install -r gui/requirements.txt
+
+      - name: Build PyInstaller executable
+        run: bash gui/build.sh
+
+      - name: Create DMG installer
+        run: bash gui/installer/macos.sh
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: macos-dmg
+          path: releases/*.dmg
+
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: releases/POIDH-Bot-*.dmg
+          asset_name: POIDH-Bot-${{ github.ref_name }}-macos.dmg
+          asset_content_type: application/x-apple-diskimage
+
+  build-linux:
+    runs-on: ubuntu-latest
+    name: Build Linux Installers
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential fakeroot dpkg-dev
+
+      - name: Install Node.js dependencies
+        run: npm install
+
+      - name: Install Python dependencies
+        run: pip install -r gui/requirements.txt
+
+      - name: Build PyInstaller executable
+        run: bash gui/build.sh
+
+      - name: Create Linux installers
+        run: bash gui/installer/linux.sh
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: linux-appimage
+          path: releases/*.AppImage
+          if-no-files-found: ignore
+
+      - name: Upload DEB artifact
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: linux-deb
+          path: releases/*.deb
+          if-no-files-found: ignore
+
+      - name: Upload Tarball artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux-tarball
+          path: releases/*.tar.gz
+
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            releases/*.AppImage
+            releases/*.deb
+            releases/*.tar.gz
+
+  build-windows:
+    runs-on: windows-latest
+    name: Build Windows Installer
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Node.js dependencies
+        run: npm install
+
+      - name: Install Python dependencies
+        run: pip install -r gui\requirements.txt
+
+      - name: Build PyInstaller executable
+        run: gui\build.bat
+
+      - name: Install NSIS
+        uses: joncloud/makensis-action@v3.7
+
+      - name: Create Windows installer
+        run: |
+          $PROJECT_ROOT = Get-Location
+          $VERSION = (Get-Content package.json | Select-String '"version"' | Select-Object -First 1) -replace '.*"version":\s*"([^"]*)".*', '$1'
+          makensis /D PROJECT_ROOT="$PROJECT_ROOT" /D VERSION="$VERSION" gui\installer\windows.nsi
+
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows-exe
+          path: releases/*.exe
+
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: releases/*.exe
+
+  create-release:
+    needs: [build-macos, build-linux, build-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    name: Create Release Notes
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate Release Notes
+        id: release_notes
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "## Release $VERSION" > release_notes.md
+          echo "" >> release_notes.md
+          echo "### Downloads" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "- **Windows**: POIDH-Bot-Setup-$VERSION-x64.exe" >> release_notes.md
+          echo "- **macOS**: POIDH-Bot-$VERSION-macos.dmg" >> release_notes.md
+          echo "- **Linux**: POIDH-Bot-$VERSION-x86_64.AppImage or poidh-bot_${VERSION}_amd64.deb" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "### Installation Instructions" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "#### Windows" >> release_notes.md
+          echo "1. Download POIDH-Bot-Setup-$VERSION-x64.exe" >> release_notes.md
+          echo "2. Run the installer" >> release_notes.md
+          echo "3. Follow the installation wizard" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "#### macOS" >> release_notes.md
+          echo "1. Download POIDH-Bot-$VERSION-macos.dmg" >> release_notes.md
+          echo "2. Open the DMG file" >> release_notes.md
+          echo "3. Drag POIDH-Bot-GUI.app to Applications folder" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "#### Linux (AppImage)" >> release_notes.md
+          echo "1. Download POIDH-Bot-$VERSION-x86_64.AppImage" >> release_notes.md
+          echo "2. Make it executable: chmod +x POIDH-Bot-$VERSION-x86_64.AppImage" >> release_notes.md
+          echo "3. Run: ./POIDH-Bot-$VERSION-x86_64.AppImage" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "#### Linux (DEB)" >> release_notes.md
+          echo "1. Download poidh-bot_${VERSION}_amd64.deb" >> release_notes.md
+          echo "2. Install: sudo apt install ./poidh-bot_${VERSION}_amd64.deb" >> release_notes.md
+          echo "3. Run: poidh-bot" >> release_notes.md
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: release_notes.md

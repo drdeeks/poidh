@@ -41,6 +41,10 @@
     "gui": "python gui/poidh_gui.py",
     "gui:build": "cd gui && bash build.sh",
     "gui:build:win": "cd gui && build.bat",
+    "gui:package": "bash gui/installer/build-all.sh",
+    "gui:package:win": "gui\\installer\\build-all.bat",
+    "gui:installer:macos": "bash gui/installer/macos.sh",
+    "gui:installer:linux": "bash gui/installer/linux.sh",
     "cli": "python gui/cli.py"
   },
   "dependencies": {
